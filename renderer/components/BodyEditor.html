@@ -1,0 +1,28 @@
+<!-- BodyEditor Component -->
+<div class="body-options">
+    <label class="radio-option">
+        <input type="radio" name="bodyType" value="none" checked>
+        <span>None</span>
+    </label>
+    <label class="radio-option">
+        <input type="radio" name="bodyType" value="raw">
+        <span>raw</span>
+    </label>
+    <label class="radio-option">
+        <input type="radio" name="bodyType" value="form-data">
+        <span>form-data</span>
+    </label>
+    <label class="radio-option">
+        <input type="radio" name="bodyType" value="x-www-form-urlencoded">
+        <span>x-www-form-urlencoded</span>
+    </label>
+</div>
+<div class="body-editor-container">
+    <select class="body-format-select" id="bodyFormatSelect">
+        <option value="json">JSON</option>
+        <option value="text">Text</option>
+        <option value="xml">XML</option>
+    </select>
+    <textarea class="body-editor" id="bodyEditor" placeholder='{\n  "key": "value"\n}'></textarea>
+</div>
+

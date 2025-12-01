@@ -1,0 +1,34 @@
+<!-- Sidebar Component -->
+<aside class="sidebar">
+    <div class="sidebar-header">
+        <h2>Colecciones</h2>
+        <div class="collections-menu-container">
+            <button class="menu-trigger" id="collectionsMenuTrigger" title="Opciones de colecciones">⋯</button>
+            <div class="collections-menu" id="collectionsMenu">
+                <button class="menu-item" id="importFileBtn">
+                    <span>Importar</span>
+                </button>
+                <button class="menu-item" id="newRequestBtn">
+                    <span>Nueva Request</span>
+                </button>
+                <button class="menu-item" id="saveRequestBtn">
+                    <span>Guardar</span>
+                </button>
+                <button class="menu-item" id="newCollectionBtn">
+                    <span>Nueva Colección</span>
+                </button>
+            </div>
+        </div>
+    </div>
+    <div class="collections-list" id="collectionsList">
+        <!-- Las colecciones se cargarán dinámicamente -->
+        <div class="empty-collections" id="emptyCollections">
+            <div class="empty-state">
+                <div class="empty-icon">📁</div>
+                <p class="empty-text">No hay colecciones</p>
+                <p class="empty-hint">Usa el menú para crear o importar una colección</p>
+            </div>
+        </div>
+    </div>
+</aside>
+

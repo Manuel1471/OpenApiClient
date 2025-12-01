@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OpenAPI Client</title>
+    <link rel="stylesheet" href="assets/css/main.css">
+</head>
+<body>
+    <div id="app">
+        <!-- TopBar Component -->
+        <div id="topBarContainer"></div>
+
+        <div class="container">
+            <!-- Sidebar Component -->
+            <div id="sidebarContainer"></div>
+
+            <!-- Área principal -->
+            <main class="main-content">
+                <!-- Estado vacío cuando no hay request seleccionada -->
+                <div class="empty-request-state" id="emptyRequestState">
+                    <div class="empty-request-content">
+                        <div class="empty-request-icon">⚡</div>
+                        <h2 class="empty-request-title">Esperando crear una petición</h2>
+                        <p class="empty-request-text">Selecciona una request de una colección o crea una nueva</p>
+                    </div>
+                </div>
+
+                <!-- Contenido de request (oculto inicialmente) -->
+                <div class="request-content" id="requestContent" style="display: none;">
+                    <!-- RequestBar Component -->
+                    <div id="requestBarContainer"></div>
+
+                    <!-- RequestTabs Component -->
+                    <div id="requestTabsContainer"></div>
+
+                    <!-- TabContent Component -->
+                    <div id="tabContentContainer"></div>
+
+                    <!-- ResponseSection Component -->
+                    <div id="responseSectionContainer"></div>
+                </div>
+            </main>
+        </div>
+    </div>
+    
+    <!-- Component Loader -->
+    <script src="components/ComponentLoader.js"></script>
+    <!-- Scripts del renderer -->
+    <script src="assets/js/renderer.js"></script>
+</body>
+</html>
+

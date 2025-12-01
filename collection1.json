@@ -1,0 +1,27 @@
+{
+    "info": {
+        "name": "Collection 1",
+        "createdAt": "2025-11-30T10:00:00.000Z"
+    },
+    "requests": [
+        {
+            "name": "Request 1",
+            "method": "GET",
+            "url": "https://api.example.com/request1",
+            "headers": {
+                "Content-Type": "application/json"
+            }
+        },
+        {
+            "name": "Request 2",
+            "method": "POST",
+            "url": "https://api.example.com/request2",
+            "headers": {
+                "Content-Type": "application/json"
+            },
+            "body": {
+                "name": "Request 2"
+            }
+        }
+    ]
+}

@@ -1,0 +1,16 @@
+{
+  "name": "OpenApiClient",
+  "version": "1.0.0",
+  "main": "main/main.js",
+  "repository": "https://github.com/Manuel1471/OpenApiClient.git",
+  "author": "Manuel Garcia <manuel-garccia@hotmail.com>",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "dev": "NODE_ENV=development electron .",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "devDependencies": {
+    "electron": "^39.2.4"
+  }
+}
