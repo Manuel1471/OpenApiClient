@@ -6,10 +6,7 @@ const { _electron: playwrightElectron } = require("playwright");
 
 // Smoke E2E: boots the actual Electron binary and verifies the main process registers handlers.
 test("Electron starts the application and registers IPC handlers", async () => {
-  const electron = path.join(
-    __dirname,
-    "../node_modules/electron/dist/Electron.app/Contents/MacOS/Electron",
-  );
+  const electron = require("electron");
   await new Promise((resolve, reject) => {
     const child = spawn(electron, ["."], {
       cwd: path.join(__dirname, ".."),

@@ -12,7 +12,7 @@
   "scripts": {
     "start": "electron .",
     "dev": "NODE_ENV=development electron .",
-    "test": "node --test test/**/*.test.js",
+    "test": "node --test test/collectionService.test.js test/translations.test.js",
     "test:e2e": "node --test test/electron.e2e.test.js",
     "dist": "electron-builder",
     "dist:mac": "electron-builder --mac dmg",
