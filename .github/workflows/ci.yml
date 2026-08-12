@@ -14,9 +14,11 @@ jobs:
           node-version: 26
           cache: npm
       - run: npm ci
-      # Electron downloads its platform binary in its own installer. Run it explicitly
-      # so a restored npm cache cannot leave the package without Electron.app.
-      - run: node node_modules/electron/install.js
+      # Force a clean Electron binary download. npm's dependency cache can contain
+      # the JavaScript package without its platform-specific dist/path.txt files.
+      - run: |
+          rm -rf node_modules/electron/dist node_modules/electron/path.txt
+          env -u ELECTRON_SKIP_BINARY_DOWNLOAD force_no_cache=true node node_modules/electron/install.js
       - run: node -e "console.log(require('electron'))"
       - run: npm test
       - run: npm run test:e2e
