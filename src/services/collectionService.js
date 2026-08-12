@@ -69,8 +69,9 @@ function importOpenApi(source) {
           const params = parameters.filter(parameter => parameter.in === "query").map(parameter => ({ key: parameter.name, value: parameter.example ?? parameter.schema?.example ?? "" }));
           const headers = parameters.filter(parameter => parameter.in === "header").map(parameter => ({ key: parameter.name, value: parameter.example ?? parameter.schema?.example ?? "" }));
           const content = operation.requestBody?.content?.["application/json"];
-          const example = content?.example ?? Object.values(content?.examples || {})[0]?.value ?? content?.schema?.example;
+          const example = content?.example ?? Object.values(content?.examples || {})[0]?.value ?? exampleFromSchema(content?.schema, spec);
           const secured = operation.security || spec.security;
+          const auth = authFromSecurity(secured, spec.components?.securitySchemes);
           return ({
           id: crypto.randomUUID(),
           name:
@@ -82,7 +83,7 @@ function importOpenApi(source) {
           params,
           headers,
           body: { type: example === undefined ? "none" : "raw", format: "json", content: example === undefined ? "" : JSON.stringify(example, null, 2), formData: [] },
-          auth: secured ? { type: "bearer", token: "{{token}}" } : { type: "none" },
+          auth,
         });
       }),
   );
@@ -94,6 +95,36 @@ function importOpenApi(source) {
   });
 }
 
+function exampleFromSchema(schema, spec, seen = new Set()) {
+  if (!schema || typeof schema !== "object") return undefined;
+  if (schema.example !== undefined) return schema.example;
+  if (schema.default !== undefined) return schema.default;
+  if (schema.$ref) {
+    if (seen.has(schema.$ref)) return undefined;
+    seen.add(schema.$ref);
+    return exampleFromSchema(resolveRef(schema.$ref, spec), spec, seen);
+  }
+  if (schema.enum?.length) return schema.enum[0];
+  if (schema.type === "array") return [exampleFromSchema(schema.items || {}, spec, seen)];
+  if (schema.type === "object" || schema.properties) {
+    return Object.fromEntries(Object.entries(schema.properties || {}).map(([key, value]) => [key, exampleFromSchema(value, spec, seen)]));
+  }
+  return { string: "string", integer: 0, number: 0, boolean: false }[schema.type];
+}
+
+function resolveRef(reference, spec) {
+  return reference.replace(/^#\//, "").split("/").reduce((value, key) => value?.[key], spec);
+}
+
+function authFromSecurity(security, schemes = {}) {
+  const name = security?.[0] && Object.keys(security[0])[0];
+  const scheme = name ? schemes[name] : null;
+  if (!scheme) return { type: "none" };
+  if (scheme.type === "apiKey") return { type: "apikey", keyName: scheme.name || "X-API-Key", token: "{{token}}" };
+  if (scheme.scheme === "basic") return { type: "basic", username: "{{username}}", password: "{{password}}" };
+  return { type: "bearer", token: "{{token}}" };
+}
+
 module.exports = {
   createCollectionData,
   saveCollection,
@@ -101,4 +132,6 @@ module.exports = {
   upsertRequest,
   importOpenApi,
   sanitizeForExport,
+  exampleFromSchema,
+  authFromSecurity,
 };

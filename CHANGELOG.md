@@ -26,6 +26,7 @@ All notable changes to OpenAPI Client are documented in this file.
 - Configurable account preferences, language, environments, request timeout, and disabled future-login configuration.
 - Node.js 26 and npm 11 requirements.
 - Unit tests for collection persistence and translations, plus an Electron startup end-to-end smoke test.
+- Version label shown consistently in the application shell and documentation.
 
 ### Fixed
 

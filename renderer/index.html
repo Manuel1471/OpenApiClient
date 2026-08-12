@@ -3,10 +3,14 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>OpenAPI Client</title>
+    <title>OpenAPI Client v1.0.0</title>
     <link rel="stylesheet" href="assets/css/main.css" />
   </head>
   <body>
+    <div class="app-splash" id="appSplash" role="status" aria-label="Loading OpenAPI Client">
+      <img src="assets/icon.png" alt="" class="app-splash-logo" />
+      <p>OPENAPI CLIENT v1.0.0</p><span>Initializing workspace…</span>
+    </div>
     <div id="app">
       <!-- TopBar Component -->
       <div id="topBarContainer"></div>
@@ -88,18 +92,21 @@
             class="settings-tab active"
             type="button"
             data-settings-tab="profile"
+            data-i18n="settings.profile"
           >
             Profile</button
           ><button
             class="settings-tab"
             type="button"
             data-settings-tab="environment"
+            data-i18n="settings.environment"
           >
             Environments</button
           ><button
             class="settings-tab"
             type="button"
             data-settings-tab="advanced"
+            data-i18n="settings.advanced"
           >
             Advanced
           </button>
@@ -122,26 +129,26 @@
         <div class="settings-panel" data-settings-panel="environment">
           <div class="environment-settings">
             <div class="environment-settings-header">
-              <span>Entorno</span
-              ><button type="button" id="addEnvironmentBtn">+ Nuevo</button
-              ><button type="button" id="deleteEnvironmentBtn">Eliminar</button>
+              <span data-i18n="settings.environment">Entorno</span
+              ><button type="button" id="addEnvironmentBtn" data-i18n="settings.new">+ Nuevo</button
+              ><button type="button" id="deleteEnvironmentBtn" data-i18n="common.delete">Eliminar</button>
             </div>
             <label
-              >Entorno<select id="accountEnvironmentSelect"></select
+              ><span data-i18n="settings.environment">Entorno</span><select id="accountEnvironmentSelect"></select
             ></label>
             <label
-              >Base URL<input
+              ><span data-i18n="settings.baseUrl">Base URL</span><input
                 id="environmentBaseUrlInput"
                 placeholder="https://api.example.com"
             /></label>
             <label
-              >Token<input
+              ><span data-i18n="settings.token">Token</span><input
                 id="environmentTokenInput"
                 type="password"
                 placeholder="{{token}}"
             /></label>
             <label
-              >Timeout (ms)<input
+              ><span data-i18n="settings.timeout">Timeout (ms)</span><input
                 id="requestTimeoutInput"
                 type="text"
                 inputmode="numeric"
@@ -149,15 +156,22 @@
                 aria-describedby="timeoutHint"
             /></label>
             <p class="field-hint" id="timeoutHint">
-              Minimum 1000 ms · default 30000 ms
+              <span data-i18n="settings.timeoutHint">Mínimo 1000 ms · predeterminado 30000 ms</span>
             </p>
+            <div class="variable-editor">
+              <div class="variable-editor-header"><span>Environment variables</span><button type="button" id="addEnvironmentVariableBtn">+ Add variable</button></div>
+              <div id="environmentVariablesRows"></div>
+            </div>
           </div>
         </div>
         <div class="settings-panel" data-settings-panel="advanced">
           <p class="field-hint">
-            Secrets are stored with your system keychain when available. Login
-            remains disabled.
+            <span data-i18n="settings.advancedHint">Los secretos se almacenan con el llavero del sistema cuando está disponible. El inicio de sesión permanece desactivado.</span>
           </p>
+          <div class="variable-editor">
+            <div class="variable-editor-header"><span>Global variables</span><button type="button" id="addGlobalVariableBtn">+ Add variable</button></div>
+            <div id="globalVariablesRows"></div>
+          </div>
         </div>
         <div class="modal-actions">
           <button

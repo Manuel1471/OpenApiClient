@@ -32,7 +32,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   selectFile: async () => {
     return await ipcRenderer.invoke("select-file");
   },
-  selectUploadFile: async () => ipcRenderer.invoke("select-upload-file"),
+  selectUploadFiles: async () => ipcRenderer.invoke("select-upload-file"),
 
   // Leer contenido de un archivo
   readFile: async (filePath) => {

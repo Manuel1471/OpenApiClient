@@ -293,6 +293,14 @@ button {
 .collection-container {
   margin-bottom: 3px;
 }
+.folder-item { margin: 10px 8px 3px; padding: 7px 8px; color: var(--green); border: 1px dashed #315447; border-radius: 4px; background: #0d1c16; font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; user-select: none; }
+.folder-item:hover { border-color: var(--green); background: #13261d; }
+.folder-item:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+.folder-chevron { display: inline-block; margin-right: 7px; transition: transform .16s ease; }
+.folder-item.is-collapsed .folder-chevron { transform: rotate(-90deg); }
+.folder-actions { float: right; display: flex; gap: 3px; }
+.folder-actions button { color: var(--muted); border: 0; background: transparent; }
+.folder-actions button:hover { color: var(--green); }
 .collection-item,
 .collection-header {
   display: flex;
@@ -312,6 +320,7 @@ button {
   background: #14251e;
   border-color: #274538;
 }
+.collection-item.drag-target { border-color: var(--green); background: #193326; box-shadow: inset 3px 0 0 var(--green); }
 .collection-name {
   flex: 1;
   overflow: hidden;
@@ -665,8 +674,13 @@ button {
   padding: 8px 10px;
 }
 .kv-row.form-data-row {
-  grid-template-columns: 1fr 1fr 32px 32px;
+  grid-template-columns: 1fr 1fr 110px 32px 32px;
 }
+.kv-mime { width: 100%; padding: 8px; color: var(--text); border: 1px solid #294538; border-radius: 4px; background: #101d18; }
+.kv-row[data-file-path] .kv-value { color: var(--cyan); border-color: #286676; }
+.assertion-results { min-height: 0; margin-top: 12px; padding: 10px; overflow: auto; color: var(--muted); border: 1px solid var(--line); border-radius: 4px; background: #09110e; font: 11px/1.5 var(--mono); }
+.assertion-results.success { color: var(--green); border-color: #32634e; }
+.assertion-results.error { color: #ef9a9a; border-color: #693838; }
 .btn-file {
   width: 29px;
   height: 29px;
@@ -790,6 +804,21 @@ button {
   border-radius: 5px;
   background: #0b1210;
 }
+.response-resize-handle { height: 7px; cursor: row-resize; border-bottom: 1px solid var(--line); background: linear-gradient(90deg, transparent, #294538, transparent); }
+.response-resize-handle:hover { background: var(--green); }
+.variable-editor { display: grid; gap: 7px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+.variable-editor-header, .variable-row { display: grid; grid-template-columns: 1fr auto; gap: 7px; align-items: center; }
+.variable-editor-header { color: var(--muted); font-size: 10px; text-transform: uppercase; }
+.variable-row { grid-template-columns: 1fr 1.4fr 30px 30px; }
+.variable-row input { min-width: 0; padding: 8px; color: var(--text); border: 1px solid #294538; border-radius: 4px; background: #09110e; }
+.variable-visibility { height: 30px; color: var(--cyan); border: 1px solid #294538; border-radius: 3px; background: #102119; }
+.app-splash { position: fixed; inset: 0; z-index: 100; display: grid; place-content: center; gap: 10px; color: var(--green); background: radial-gradient(circle, #12241c, #050907 65%); text-align: center; transition: opacity .35s ease, visibility .35s; }
+.app-splash.is-hidden { visibility: hidden; opacity: 0; pointer-events: none; }
+.app-splash-logo { width: 82px; height: 82px; margin: auto; filter: drop-shadow(0 0 22px #5dffac88); animation: splash-pulse 1.2s ease-in-out infinite alternate; }
+.app-splash p { margin: 0; font: 600 17px var(--display); letter-spacing: .14em; }
+.app-splash span { color: var(--muted); font-size: 11px; }
+.app-version { color: var(--muted); font: 10px var(--mono); }
+@keyframes splash-pulse { to { transform: scale(1.08) rotate(2deg); filter: drop-shadow(0 0 34px #5dffac); } }
 .response-header {
   display: flex;
   align-items: center;
@@ -1044,6 +1073,7 @@ button {
   border-color: #743c3c;
   background: #321b1b;
 }
+.toast-action { margin-left: 10px; padding: 3px 6px; color: var(--green); border: 1px solid currentColor; border-radius: 3px; background: transparent; font: inherit; }
 @keyframes toast-in {
   from {
     opacity: 0;

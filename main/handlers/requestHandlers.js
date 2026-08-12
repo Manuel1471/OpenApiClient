@@ -8,9 +8,13 @@ const controllers = new Map();
 ipcMain.handle("execute-request", async (event, request) => {
   const startedAt = Date.now();
   const controller = new AbortController();
+  let timedOut = false;
   controllers.set(request.id, controller);
   const timeout = setTimeout(
-    () => controller.abort(),
+    () => {
+      timedOut = true;
+      controller.abort();
+    },
     Math.max(1000, Number(request.timeout) || 30000),
   );
   try {
@@ -34,9 +38,19 @@ ipcMain.handle("execute-request", async (event, request) => {
       duration: Date.now() - startedAt,
     };
   } catch (error) {
+    const type = timedOut
+      ? "timeout"
+      : error.name === "AbortError"
+        ? "cancelled"
+        : /ENOTFOUND|getaddrinfo|DNS/i.test(error.message)
+          ? "dns"
+          : /CERT|TLS|SSL/i.test(error.message)
+            ? "tls"
+            : "network";
     return {
       success: false,
       error: error.message,
+      errorType: type,
       duration: Date.now() - startedAt,
     };
   } finally {
@@ -51,7 +65,7 @@ async function createFormData(entries) {
     if (entry.filePath)
       form.append(
         entry.key,
-        new Blob([await fs.readFile(entry.filePath)]),
+        new Blob([await fs.readFile(entry.filePath)], { type: entry.mimeType || "application/octet-stream" }),
         path.basename(entry.filePath),
       );
     else form.append(entry.key, entry.value || "");

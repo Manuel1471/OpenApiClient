@@ -1,6 +1,6 @@
-# OpenAPI Client
+# OpenAPI Client v1.0.0
 
-Desktop client for exploring and executing HTTP requests. It lets you organize collections, configure parameters, headers, bodies, and authentication, and inspect responses from a terminal-inspired interface.
+Version 1.0.0 of the desktop client for exploring and executing HTTP requests. It lets you organize collections, configure parameters, headers, bodies, and authentication, and inspect responses from a terminal-inspired interface.
 
 ## Requirements
 

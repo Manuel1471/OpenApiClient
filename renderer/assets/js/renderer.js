@@ -6,6 +6,29 @@
  * funciones se mantienen juntas temporalmente porque los componentes HTML se
  * cargan dinámicamente y comparten el mismo DOM.
  */
+const DEFAULT_ENVIRONMENTS = Object.freeze([
+  {
+    id: "local",
+    name: "Local",
+    variables: { baseUrl: "http://localhost:3000", token: "" },
+  },
+  { id: "staging", name: "Staging", variables: { baseUrl: "", token: "" } },
+  {
+    id: "production",
+    name: "Producción",
+    variables: { baseUrl: "", token: "" },
+  },
+]);
+
+const EMPTY_REQUEST = Object.freeze({
+  method: "GET",
+  url: "",
+  params: [],
+  headers: [],
+  body: { type: "none", format: "json", content: "", formData: [] },
+  auth: { type: "none" },
+});
+
 const state = {
   config: null,
   collections: [],
@@ -14,10 +37,14 @@ const state = {
   modalAction: null,
   activeExecutionId: null,
   isDirty: false,
+  currentResponse: null,
+  previousResponse: null,
+  collapsedFolders: new Set(),
+  lastUndo: null,
 };
 
 document.addEventListener("DOMContentLoaded", async () => {
-  state.config = normaliseConfig(await window.electronAPI.getConfig());
+  state.config = normalizeConfig(await window.electronAPI.getConfig());
   await loadComponents();
   applyTranslations();
   bindInterface();
@@ -25,42 +52,117 @@ document.addEventListener("DOMContentLoaded", async () => {
   renderHistory();
   await loadSavedCollections();
   updateWelcomeMessage(state.config);
+  window.setTimeout(() => byId("appSplash")?.classList.add("is-hidden"), 550);
 });
 
 // ── Configuración y estado ────────────────────────────────────────────────
-function normaliseConfig(config) {
-  const defaults = [
-    {
-      id: "local",
-      name: "Local",
-      variables: { baseUrl: "http://localhost:3000", token: "" },
+function normalizeConfig(source) {
+  const config = source && typeof source === "object" ? source : {};
+  const environments = Array.isArray(config.environments)
+    ? config.environments.map(normalizeEnvironment).filter(Boolean)
+    : [];
+  const normalizedEnvironments = environments.length
+    ? environments
+    : DEFAULT_ENVIRONMENTS.map(normalizeEnvironment);
+  const activeEnvironmentId = normalizedEnvironments.some(
+    (environment) => environment.id === config.activeEnvironmentId,
+  )
+    ? config.activeEnvironmentId
+    : normalizedEnvironments[0].id;
+
+  return {
+    ...config,
+    user: { name: "Usuario", ...(config.user || {}) },
+    authentication: {
+      enabled: false,
+      provider: null,
+      session: null,
+      ...(config.authentication || {}),
     },
-    { id: "staging", name: "Staging", variables: { baseUrl: "", token: "" } },
-    {
-      id: "production",
-      name: "Producción",
-      variables: { baseUrl: "", token: "" },
-    },
-  ];
-  config = config || {};
-  config.user ||= { name: "Usuario" };
-  config.authentication ||= {
-    enabled: false,
-    provider: null,
-    session: null,
+    collections: Array.isArray(config.collections) ? config.collections : [],
+    globalVariables: normalizeVariables(config.globalVariables),
+    folders: Array.isArray(config.folders) ? config.folders.filter((folder) => folder?.id && folder?.name) : [],
+    collectionFolders: config.collectionFolders && typeof config.collectionFolders === "object" ? config.collectionFolders : {},
+    history: Array.isArray(config.history)
+      ? config.history.map(normalizeRequest)
+      : [],
+    environments: normalizedEnvironments,
+    activeEnvironmentId,
+    language: window.translations?.[config.language] ? config.language : "es",
   };
-  config.collections ||= [];
-  config.history ||= [];
-  config.environments ||= defaults;
-  config.activeEnvironmentId ||= config.environments[0].id;
-  config.language = window.translations?.[config.language]
-    ? config.language
-    : "es";
-  return config;
+}
+
+function normalizeEnvironment(environment) {
+  if (!environment || typeof environment !== "object") return null;
+  return {
+    id: String(environment.id || crypto.randomUUID()),
+    name: String(environment.name || "Entorno"),
+    variables: {
+      baseUrl: "",
+      token: "",
+      ...(environment.variables || {}),
+    },
+  };
+}
+
+function normalizeCollection(collection) {
+  if (!collection || typeof collection !== "object") return null;
+  return {
+    ...collection,
+    info: {
+      ...(collection.info || {}),
+      name: collection.info?.name || collection.name || "Colección sin nombre",
+    },
+    requests: Array.isArray(collection.requests)
+      ? collection.requests.map(normalizeRequest)
+      : [],
+  };
+}
+
+function normalizeRequest(request = {}) {
+  const body = request.body || {};
+  return {
+    ...EMPTY_REQUEST,
+    ...request,
+    id: request.id || crypto.randomUUID(),
+    name: String(request.name || ""),
+    method: String(request.method || EMPTY_REQUEST.method).toUpperCase(),
+    url: String(request.url || ""),
+    params: normalizeKeyValues(request.params),
+    headers: normalizeKeyValues(request.headers),
+    body: {
+      ...EMPTY_REQUEST.body,
+      ...body,
+      content: String(body.content || ""),
+      formData: normalizeKeyValues(body.formData),
+    },
+    auth: { ...EMPTY_REQUEST.auth, ...(request.auth || {}) },
+  };
+}
+
+function normalizeKeyValues(entries) {
+  if (!Array.isArray(entries)) return [];
+  return entries
+    .filter((entry) => entry && typeof entry === "object")
+    .map((entry) => ({
+      key: String(entry.key || ""),
+      value: String(entry.value || ""),
+      filePath: String(entry.filePath || ""),
+      mimeType: String(entry.mimeType || ""),
+    }));
 }
 
 function t(key) {
   return window.translations?.[state.config?.language || "es"]?.[key] || key;
+}
+
+function tFormat(key, values = {}) {
+  return t(key).replace(/\{(\w+)\}/g, (_, name) => values[name] ?? "");
+}
+
+function normalizeVariables(variables) {
+  if (!variables || typeof variables !== "object" || Array.isArray(variables)) return {};
+  return Object.fromEntries(Object.entries(variables).map(([key, value]) => [key, String(value ?? "")]));
 }
 
 function applyTranslations() {
@@ -73,6 +175,9 @@ function applyTranslations() {
   });
   document.querySelectorAll("[data-i18n-title]").forEach((element) => {
     element.title = t(element.dataset.i18nTitle);
+  });
+  document.querySelectorAll("[data-i18n-aria-label]").forEach((element) => {
+    element.setAttribute("aria-label", t(element.dataset.i18nAriaLabel));
   });
 }
 
@@ -102,6 +207,7 @@ function bindInterface() {
   byId("newCollectionBtn").addEventListener("click", () =>
     openCollectionDialog(),
   );
+  byId("newFolderBtn").addEventListener("click", openFolderDialog);
   byId("emptyCreateCollectionBtn").addEventListener("click", () =>
     openCollectionDialog(),
   );
@@ -186,6 +292,12 @@ function bindInterface() {
   );
   byId("addEnvironmentBtn").addEventListener("click", addEnvironment);
   byId("deleteEnvironmentBtn").addEventListener("click", deleteEnvironment);
+  byId("addEnvironmentVariableBtn").addEventListener("click", () => addVariableRow("environmentVariablesRows"));
+  byId("addGlobalVariableBtn").addEventListener("click", () => addVariableRow("globalVariablesRows"));
+  document.querySelectorAll(".response-resize-handle").forEach((handle) => {
+    handle.addEventListener("pointerdown", startResponseResize);
+    handle.addEventListener("keydown", handleResponseResizeKeyboard);
+  });
   document.addEventListener("keydown", handleKeyboardShortcuts);
   document
     .querySelector(".request-content")
@@ -202,7 +314,7 @@ function updateWelcomeMessage(config) {
 async function persistConfig() {
   const result = await window.electronAPI.saveConfig(state.config);
   if (!result.success)
-    showToast("No se pudo guardar la configuración", "error");
+    showToast(t("error.saveConfig"), "error");
   return result;
 }
 function activeEnvironment() {
@@ -220,8 +332,7 @@ function renderEnvironmentOptions() {
     )
     .join("");
   byId("environmentSelect").value = state.config.activeEnvironmentId;
-  byId("environmentSelect").title =
-    `Active environment: ${activeEnvironment().name}`;
+  byId("environmentSelect").title = `${t("request.environment")}: ${activeEnvironment().name}`;
 }
 function markDirty() {
   state.isDirty = true;
@@ -235,17 +346,23 @@ function clearDirty() {
 // ── Colecciones y editor de requests ──────────────────────────────────────
 async function loadSavedCollections() {
   const result = await window.electronAPI.loadAllCollections();
-  state.collections = result.success ? result.collections : [];
+  state.collections = result.success
+    ? result.collections.map(normalizeCollection).filter(Boolean)
+    : [];
   renderCollections();
 }
 function renderCollections() {
   const list = byId("collectionsList"),
     empty = byId("emptyCollections");
   list
-    .querySelectorAll(".collection-container")
+    .querySelectorAll(".collection-container, .folder-item")
     .forEach((item) => item.remove());
   const term = byId("collectionSearchInput")?.value.trim().toLowerCase() || "";
-  state.collections.forEach((collection) => {
+  let lastFolderId = null;
+  state.collections
+    .slice()
+    .sort((a, b) => folderNameForCollection(a).localeCompare(folderNameForCollection(b)))
+    .forEach((collection) => {
     if (
       term &&
       !`${collection.info?.name || collection.name} ${(collection.requests || []).map((request) => `${request.name} ${request.url}`).join(" ")}`
@@ -253,8 +370,57 @@ function renderCollections() {
         .includes(term)
     )
       return;
+    const folderId = folderIdForCollection(collection);
+    if (folderId !== lastFolderId) {
+      const folder = document.createElement("div");
+      folder.className = "folder-item";
+      const isCollapsed = state.collapsedFolders.has(folderId);
+      folder.classList.toggle("is-collapsed", isCollapsed);
+      folder.style.marginLeft = `${folderDepth(folderId) * 12 + 8}px`;
+      folder.setAttribute("role", "button");
+      folder.setAttribute("tabindex", "0");
+      folder.setAttribute("aria-expanded", String(!isCollapsed));
+      folder.innerHTML = `<span class="folder-chevron" aria-hidden="true">▾</span><span>${escapeHtml(folderNameForCollection(collection))}</span>${folderId === "root" ? "" : `<span class="folder-actions"><button type="button" data-folder-action="rename">✎</button><button type="button" data-folder-action="delete">×</button></span>`}`;
+      folder.dataset.folderId = folderId;
+      folder.addEventListener("dragover", (event) => event.preventDefault());
+      folder.addEventListener("drop", async (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        const path = event.dataTransfer.getData("application/x-openapi-collection");
+        if (path) {
+          state.config.collectionFolders[path] = folderId;
+          await persistConfig();
+          renderCollections();
+        }
+      });
+      folder.querySelectorAll("[data-folder-action]").forEach((button) => button.addEventListener("click", (event) => {
+        event.stopPropagation();
+        handleFolderAction(button.dataset.folderAction, folderId);
+      }));
+      const toggleFolder = () => {
+        if (state.collapsedFolders.has(folderId)) state.collapsedFolders.delete(folderId);
+        else state.collapsedFolders.add(folderId);
+        renderCollections();
+      };
+      folder.addEventListener("click", toggleFolder);
+      folder.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          toggleFolder();
+        }
+      });
+      list.insertBefore(folder, empty);
+      lastFolderId = folderId;
+    }
+    if (state.collapsedFolders.has(folderId)) return;
     const container = document.createElement("div");
     container.className = "collection-container";
+    container.draggable = true;
+    container.addEventListener("dragstart", (event) => {
+      if (event.target.closest(".request-item")) return;
+      event.dataTransfer.effectAllowed = "move";
+      event.dataTransfer.setData("application/x-openapi-collection", collection.path);
+    });
     const header = document.createElement("div");
     header.className = "collection-item";
     header.setAttribute("role", "button");
@@ -264,7 +430,7 @@ function renderCollections() {
       (request) =>
         !term || `${request.name} ${request.url}`.toLowerCase().includes(term),
     ).length;
-    header.innerHTML = `<span class="collection-chevron" aria-hidden="true">›</span><span class="collection-name">${escapeHtml(collection.info?.name || collection.name || "Colección sin nombre")}</span><span class="collection-count">${requestCount}</span><span class="collection-actions"><button type="button" data-collection-action="rename" title="Renombrar">✎</button><button type="button" data-collection-action="export" title="Exportar">⇧</button><button type="button" data-collection-action="remove" title="Quitar de la app">×</button></span>`;
+    header.innerHTML = `<span class="collection-chevron" aria-hidden="true">›</span><span class="collection-name">${escapeHtml(collection.info?.name || collection.name || t("common.collection"))}</span><span class="collection-count">${requestCount}</span><span class="collection-actions"><button type="button" data-collection-action="rename" title="${escapeHtml(t("common.rename"))}">✎</button><button type="button" data-collection-action="export" title="${escapeHtml(t("common.export"))}">⇧</button><button type="button" data-collection-action="remove" title="${escapeHtml(t("common.remove"))}">×</button></span>`;
     const requests = document.createElement("div");
     requests.className = "collection-requests is-collapsed";
     (collection.requests || [])
@@ -280,11 +446,20 @@ function renderCollections() {
         item.setAttribute("tabindex", "0");
         item.dataset.requestId = request.id || "";
         item.dataset.collectionPath = collection.path;
+        item.draggable = true;
         const method = (request.method || "GET").toUpperCase();
-        item.innerHTML = `<span class="request-method method-${method.toLowerCase()}">${escapeHtml(method)}</span><span class="request-name">${escapeHtml(request.name || `Request ${index + 1}`)}</span><span class="request-actions"><button type="button" data-request-action="edit" title="Renombrar">✎</button><button type="button" data-request-action="duplicate" title="Duplicar">⧉</button><button type="button" data-request-action="move" title="Mover">⇄</button><button type="button" data-request-action="delete" title="Eliminar">×</button></span>`;
+        item.innerHTML = `<span class="request-method method-${method.toLowerCase()}">${escapeHtml(method)}</span><span class="request-name">${escapeHtml(request.name || `${t("common.request")} ${index + 1}`)}</span><span class="request-actions"><button type="button" data-request-action="edit" title="${escapeHtml(t("common.rename"))}">✎</button><button type="button" data-request-action="duplicate" title="${escapeHtml(t("common.duplicate"))}">⧉</button><button type="button" data-request-action="move" title="${escapeHtml(t("common.move"))}">⇄</button><button type="button" data-request-action="delete" title="${escapeHtml(t("common.delete"))}">×</button></span>`;
         item.addEventListener("click", () =>
           loadRequest(request, collection.path),
         );
+        item.addEventListener("dragstart", (event) => {
+          event.stopPropagation();
+          event.dataTransfer.effectAllowed = "move";
+          event.dataTransfer.setData(
+            "application/x-openapi-request",
+            JSON.stringify({ collectionPath: collection.path, requestId: request.id }),
+          );
+        });
         item.querySelectorAll("[data-request-action]").forEach((button) =>
           button.addEventListener("click", async (event) => {
             event.stopPropagation();
@@ -303,6 +478,21 @@ function renderCollections() {
       header.setAttribute("aria-expanded", String(!expanded));
     };
     header.addEventListener("click", toggleRequests);
+    header.addEventListener("dragover", (event) => {
+      if (Array.from(event.dataTransfer.types).includes("application/x-openapi-request")) {
+        event.preventDefault();
+        header.classList.add("drag-target");
+      }
+    });
+    header.addEventListener("dragleave", () => header.classList.remove("drag-target"));
+    header.addEventListener("drop", async (event) => {
+      header.classList.remove("drag-target");
+      const raw = event.dataTransfer.getData("application/x-openapi-request");
+      if (!raw) return;
+      event.preventDefault();
+      event.stopPropagation();
+      await moveRequestByDrag(JSON.parse(raw), collection.path);
+    });
     header.querySelectorAll("[data-collection-action]").forEach((button) =>
       button.addEventListener("click", async (event) => {
         event.stopPropagation();
@@ -323,88 +513,193 @@ function renderCollections() {
   });
   empty.classList.toggle("hidden", state.collections.length > 0);
 }
+async function moveRequestByDrag(source, targetPath) {
+  if (!source?.collectionPath || !source.requestId || source.collectionPath === targetPath) return;
+  const origin = state.collections.find((collection) => collection.path === source.collectionPath);
+  const target = state.collections.find((collection) => collection.path === targetPath);
+  const request = origin?.requests?.find((item) => item.id === source.requestId);
+  if (!origin || !target || !request) return;
+  try {
+    const originBefore = [...origin.requests];
+    const targetBefore = origin === target ? originBefore : [...target.requests];
+    origin.requests = origin.requests.filter((item) => item.id !== request.id);
+    (target.requests ||= []).push(request);
+    const [originResult, targetResult] = await Promise.all([
+      window.electronAPI.updateCollection(origin.path, origin),
+      window.electronAPI.updateCollection(target.path, target),
+    ]);
+    if (!originResult.success || !targetResult.success) throw new Error(t("error.saveRequest"));
+    if (state.activeRequest?.id === request.id) state.activeCollectionPath = target.path;
+    await loadSavedCollections();
+    showToast(t("toast.requestMoved"), "success");
+    offerUndo(async () => {
+      origin.requests = originBefore;
+      if (origin !== target) target.requests = targetBefore;
+      await window.electronAPI.updateCollection(origin.path, origin);
+      if (origin !== target) await window.electronAPI.updateCollection(target.path, target);
+      await loadSavedCollections();
+    });
+  } catch (error) {
+    showToast(error.message || t("error.saveRequest"), "error");
+  }
+}
+function folderNameForCollection(collection) {
+  const id = folderIdForCollection(collection);
+  return id === "root" ? t("folder.root") : state.config.folders.find((folder) => folder.id === id)?.name || t("folder.root");
+}
+function folderIdForCollection(collection) {
+  const id = state.config.collectionFolders?.[collection.path];
+  return id && state.config.folders.some((folder) => folder.id === id) ? id : "root";
+}
+function folderDepth(id) {
+  let depth = 0;
+  let folder = state.config.folders.find((item) => item.id === id);
+  while (folder?.parentId && depth < 6) {
+    depth += 1;
+    folder = state.config.folders.find((item) => item.id === folder.parentId);
+  }
+  return depth;
+}
+function openFolderDialog() {
+  openModal({
+    title: t("folder.new"),
+    description: t("folder.description"),
+    label: t("folder.name"),
+    confirm: t("common.create"),
+    choiceLabel: t("folder.parent"),
+    choices: [{ value: "root", label: t("folder.root") }, ...state.config.folders.map((folder) => ({ value: folder.id, label: folder.name }))],
+    action: async (name, parentId) => {
+      state.config.folders.push({ id: crypto.randomUUID(), name, parentId: parentId === "root" ? null : parentId });
+      await persistConfig();
+      renderCollections();
+    },
+  });
+}
+function handleFolderAction(action, folderId) {
+  const folder = state.config.folders.find((item) => item.id === folderId);
+  if (!folder) return;
+  if (action === "rename") return openModal({
+    title: t("folder.rename"), description: t("folder.description"), label: t("folder.name"),
+    confirm: t("common.rename"), value: folder.name,
+    action: async (name) => { folder.name = name; await persistConfig(); renderCollections(); },
+  });
+  return openModal({
+    title: t("folder.delete"), description: t("folder.deleteDescription"), confirm: t("common.delete"), noInput: true,
+    action: async () => {
+      state.config.folders = state.config.folders.filter((item) => item.id !== folderId);
+      state.config.folders.forEach((item) => { if (item.parentId === folderId) item.parentId = null; });
+      Object.keys(state.config.collectionFolders).forEach((path) => { if (state.config.collectionFolders[path] === folderId) delete state.config.collectionFolders[path]; });
+      await persistConfig(); renderCollections();
+    },
+  });
+}
 
 async function handleCollectionAction(action, collection) {
   if (action === "rename") {
-    const name = window.prompt(
-      "Nuevo nombre",
-      collection.info?.name || collection.name,
-    );
-    if (!name?.trim()) return;
-    await window.electronAPI.renameCollection(collection.path, name.trim());
+    return openModal({
+      title: t("dialog.renameCollection.title"),
+      description: t("dialog.rename.description"),
+      label: t("dialog.newCollection.label"),
+      confirm: t("common.rename"),
+      value: collection.info?.name || collection.name,
+      action: async (name) => {
+        await window.electronAPI.renameCollection(collection.path, name);
+        await loadSavedCollections();
+        showToast(t("toast.collectionRenamed"), "success");
+      },
+    });
   }
-  if (action === "export")
+  if (action === "export") {
     await window.electronAPI.exportCollection(collection);
-  if (action === "remove") {
-    if (
-      !window.confirm(
-        "¿Quitar esta colección de la app? El archivo JSON no se eliminará.",
-      )
-    )
-      return;
-    await window.electronAPI.removeCollection(collection.path);
+    return;
   }
-  await loadSavedCollections();
+  if (action === "remove")
+    return openModal({
+      title: t("dialog.removeCollection.title"),
+      description: t("dialog.removeCollection.description"),
+      confirm: t("common.remove"),
+      noInput: true,
+      action: async () => {
+        await window.electronAPI.removeCollection(collection.path);
+        await loadSavedCollections();
+        showToast(t("toast.collectionRemoved"), "success");
+      },
+    });
 }
 async function handleRequestAction(action, request, collection) {
   try {
     if (action === "edit") {
-      const name = window.prompt("Nombre de la request", request.name);
-      if (!name?.trim()) return;
-      request.name = name.trim();
+      return openModal({
+        title: t("dialog.renameRequest.title"),
+        description: t("dialog.rename.description"),
+        label: t("dialog.saveRequest.label"),
+        confirm: t("common.rename"),
+        value: request.name,
+        action: async (name) => {
+          request.name = name;
+          await persistRequestCollection(collection);
+          showToast(t("toast.requestSaved"), "success");
+        },
+      });
     } else if (action === "duplicate") {
       collection.requests.push({
         ...request,
         id: crypto.randomUUID(),
-        name: `${request.name || "Request"} (copia)`,
+        name: `${request.name || t("common.request")} (${t("common.duplicate").toLowerCase()})`,
       });
     } else if (action === "delete") {
-      if (!window.confirm(`¿Eliminar “${request.name || "Request"}”?`)) return;
-      collection.requests = collection.requests.filter(
-        (item) => item.id !== request.id,
-      );
-      if (state.activeRequest?.id === request.id) newRequest();
+      return openModal({
+        title: t("dialog.deleteRequest.title"),
+        description: t("dialog.deleteRequest.description"),
+        confirm: t("common.delete"),
+        noInput: true,
+        action: async () => {
+          collection.requests = collection.requests.filter((item) => item.id !== request.id);
+          if (state.activeRequest?.id === request.id) newRequest();
+          await persistRequestCollection(collection);
+          showToast(t("toast.requestDeleted"), "success");
+        },
+      });
     } else if (action === "move") {
       const choices = state.collections.filter(
         (item) => item.path !== collection.path,
       );
       if (!choices.length)
-        return showToast(
-          "Crea otra colección para mover esta request",
-          "error",
-        );
-      const target =
-        choices[
-          Number(
-            window.prompt(
-              `Mover a: ${choices.map((item, index) => `${index + 1}. ${item.info?.name || item.name}`).join(" · ")}`,
-            ),
-          ) - 1
-        ];
-      if (!target) return;
-      collection.requests = collection.requests.filter(
-        (item) => item.id !== request.id,
-      );
-      (target.requests ||= []).push(request);
-      const targetResult = await window.electronAPI.updateCollection(
-        target.path,
-        target,
-      );
-      if (!targetResult.success)
-        throw new Error(targetResult.error || "No se pudo mover la request");
-      if (state.activeRequest?.id === request.id)
-        state.activeCollectionPath = target.path;
+        return showToast(t("dialog.noDestination"), "error");
+      return openModal({
+        title: t("dialog.moveRequest.title"),
+        description: t("dialog.moveRequest.description"),
+        confirm: t("common.move"),
+        noInput: true,
+        choiceLabel: t("dialog.moveRequest.destination"),
+        choices: choices.map((item) => ({
+          value: item.path,
+          label: item.info?.name || item.name,
+        })),
+        action: async (_, targetPath) => {
+          const target = choices.find((item) => item.path === targetPath);
+          if (!target) return;
+          collection.requests = collection.requests.filter((item) => item.id !== request.id);
+          (target.requests ||= []).push(request);
+          const targetResult = await window.electronAPI.updateCollection(target.path, target);
+          if (!targetResult.success) throw new Error(targetResult.error || t("error.saveRequest"));
+          if (state.activeRequest?.id === request.id) state.activeCollectionPath = target.path;
+          await persistRequestCollection(collection);
+          showToast(t("toast.requestMoved"), "success");
+        },
+      });
     } else return;
-    const result = await window.electronAPI.updateCollection(
-      collection.path,
-      collection,
-    );
-    if (!result.success)
-      throw new Error(result.error || "No se pudo guardar la request");
-    await loadSavedCollections();
+    await persistRequestCollection(collection);
+    showToast(t("toast.requestDuplicated"), "success");
   } catch (error) {
     showToast(error.message, "error");
   }
+}
+
+async function persistRequestCollection(collection) {
+  const result = await window.electronAPI.updateCollection(collection.path, collection);
+  if (!result.success) throw new Error(result.error || t("error.saveRequest"));
+  await loadSavedCollections();
 }
 
 function newRequest() {
@@ -417,9 +712,9 @@ function newRequest() {
 }
 function loadRequest(request, collectionPath) {
   state.activeCollectionPath = collectionPath;
-  state.activeRequest = request;
+  state.activeRequest = normalizeRequest(request);
   showRequestContent();
-  hydrateRequest(request);
+  hydrateRequest(state.activeRequest);
   clearDirty();
   document.querySelectorAll(".request-item").forEach((item) => {
     item.classList.toggle(
@@ -443,6 +738,13 @@ function clearRequestEditor() {
   byId("bodyEditor").value = "";
   document.querySelector('[name="bodyType"][value="none"]').checked = true;
   byId("authTypeSelect").value = "none";
+  byId("assertStatus").value = "";
+  byId("assertHeader").value = "";
+  byId("assertJsonPath").value = "";
+  byId("assertOperator").value = "exists";
+  byId("assertExpectedValue").value = "";
+  byId("chainVariableName").value = "";
+  byId("chainJsonPath").value = "";
   renderAuthFields();
   toggleBodyEditor();
   clearResponse();
@@ -462,6 +764,13 @@ function hydrateRequest(request) {
   if (radio) radio.checked = true;
   byId("authTypeSelect").value = request.auth?.type || "none";
   renderAuthFields(request.auth || {});
+  byId("assertStatus").value = request.tests?.expectedStatus || "";
+  byId("assertHeader").value = request.tests?.header || "";
+  byId("assertJsonPath").value = request.tests?.jsonPath || "";
+  byId("assertOperator").value = request.tests?.operator || "exists";
+  byId("assertExpectedValue").value = request.tests?.expectedValue || "";
+  byId("chainVariableName").value = request.chaining?.variableName || "";
+  byId("chainJsonPath").value = request.chaining?.jsonPath || "";
   toggleBodyEditor();
   clearResponse();
 }
@@ -477,13 +786,17 @@ function addKeyValueRow(containerId, pair = { key: "", value: "" }) {
   row.className = "kv-row";
   const canAttachFile = containerId === "formDataRows";
   row.classList.toggle("form-data-row", canAttachFile);
-  row.innerHTML = `<input class="kv-key" placeholder="nombre" value="${escapeHtml(pair.key || "")}"><input class="kv-value" placeholder="valor" value="${escapeHtml(pair.value || pair.filePath || "")}">${canAttachFile ? '<button class="btn-file" type="button" title="Attach file">⌁</button>' : ""}<button class="btn-remove" type="button" aria-label="Eliminar">×</button>`;
+  row.innerHTML = `<input class="kv-key" aria-label="Key" placeholder="nombre" value="${escapeHtml(pair.key || "")}"><input class="kv-value" aria-label="Value" placeholder="valor" value="${escapeHtml(pair.value || pair.filePath || "")}">${canAttachFile ? `<input class="kv-mime" aria-label="MIME type" placeholder="MIME" value="${escapeHtml(pair.mimeType || "")}"><button class="btn-file" type="button" aria-label="Attach files" title="Attach files">⌁</button>` : ""}<button class="btn-remove" type="button" aria-label="Remove row">×</button>`;
   row.querySelector(".btn-file")?.addEventListener("click", async () => {
-    const filePath = await window.electronAPI.selectUploadFile();
-    if (filePath) {
-      row.dataset.filePath = filePath;
-      row.querySelector(".kv-value").value = filePath.split("/").pop();
-    }
+    const filePaths = await window.electronAPI.selectUploadFiles();
+    if (!filePaths?.length) return;
+    row.dataset.filePath = filePaths[0];
+    row.querySelector(".kv-value").value = filePaths[0].split("/").pop();
+    row.querySelector(".kv-value").title = filePaths[0];
+    filePaths.slice(1).forEach((filePath) => addKeyValueRow(containerId, {
+      key: row.querySelector(".kv-key").value,
+      value: filePath.split("/").pop(), filePath,
+    }));
   });
   byId(containerId).appendChild(row);
 }
@@ -493,6 +806,7 @@ function getKeyValues(containerId) {
       key: row.querySelector(".kv-key").value.trim(),
       value: row.querySelector(".kv-value").value.trim(),
       filePath: row.dataset.filePath || "",
+      mimeType: row.querySelector(".kv-mime")?.value.trim() || "",
     }))
     .filter((item) => item.key);
 }
@@ -501,13 +815,13 @@ function renderAuthFields(auth = {}) {
   const type = byId("authTypeSelect").value,
     fields = byId("authFields");
   const templates = {
-    none: '<p class="auth-hint">Esta petición no enviará credenciales.</p>',
+    none: `<p class="auth-hint">${escapeHtml(t("auth.noCredentials"))}</p>`,
     bearer:
-      '<label>Token<input class="auth-input" id="authToken" placeholder="{{token}}" value=""></label>',
+      `<label>${escapeHtml(t("auth.token"))}<input class="auth-input" id="authToken" placeholder="{{token}}" value=""></label>`,
     basic:
-      '<label>Usuario<input class="auth-input" id="authUsername" value=""></label><label>Contraseña<input class="auth-input" id="authPassword" type="password" value=""></label>',
+      `<label>${escapeHtml(t("auth.username"))}<input class="auth-input" id="authUsername" value=""></label><label>${escapeHtml(t("auth.password"))}<input class="auth-input" id="authPassword" type="password" value=""></label>`,
     apikey:
-      '<label>Nombre del header<input class="auth-input" id="authKeyName" placeholder="X-API-Key" value=""></label><label>Valor<input class="auth-input" id="authToken" placeholder="{{token}}" value=""></label>',
+      `<label>${escapeHtml(t("auth.headerName"))}<input class="auth-input" id="authKeyName" placeholder="X-API-Key" value=""></label><label>${escapeHtml(t("auth.value"))}<input class="auth-input" id="authToken" placeholder="{{token}}" value=""></label>`,
   };
   fields.innerHTML = templates[type];
   if (byId("authToken")) byId("authToken").value = auth.token || "";
@@ -527,7 +841,7 @@ function getAuth() {
   };
 }
 function collectRequest(name = state.activeRequest?.name || "") {
-  return {
+  return normalizeRequest({
     id: state.activeRequest?.id || crypto.randomUUID(),
     name,
     method: byId("methodSelect").value,
@@ -541,6 +855,20 @@ function collectRequest(name = state.activeRequest?.name || "") {
       formData: getKeyValues("formDataRows"),
     },
     auth: getAuth(),
+    tests: collectTests(),
+    chaining: {
+      variableName: byId("chainVariableName")?.value.trim() || "",
+      jsonPath: byId("chainJsonPath")?.value.trim() || "",
+    },
+  });
+}
+function collectTests() {
+  return {
+    expectedStatus: byId("assertStatus")?.value || "",
+    header: byId("assertHeader")?.value || "",
+    jsonPath: byId("assertJsonPath")?.value || "",
+    operator: byId("assertOperator")?.value || "exists",
+    expectedValue: byId("assertExpectedValue")?.value || "",
   };
 }
 function toggleBodyEditor() {
@@ -554,7 +882,7 @@ function toggleBodyEditor() {
 function replaceVariables(value) {
   return String(value || "").replace(
     /{{\s*([\w.-]+)\s*}}/g,
-    (_, name) => activeEnvironment().variables?.[name] ?? `{{${name}}}`,
+    (_, name) => activeEnvironment().variables?.[name] ?? state.config.globalVariables?.[name] ?? `{{${name}}}`,
   );
 }
 
@@ -579,17 +907,17 @@ function validateRequest(request) {
     }
   }
   if (request.auth.type === "bearer" && !replaceVariables(request.auth.token))
-    return "Falta el token Bearer.";
+    return t("error.bearer");
   if (
     request.auth.type === "basic" &&
     (!request.auth.username || !request.auth.password)
   )
-    return "Completa el usuario y la contraseña.";
+    return t("error.basic");
   if (
     request.auth.type === "apikey" &&
     (!request.auth.keyName || !replaceVariables(request.auth.token))
   )
-    return "Completa el nombre y valor de la API Key.";
+    return t("error.apiKey");
   return null;
 }
 async function sendRequest() {
@@ -627,7 +955,7 @@ async function sendRequest() {
         }))
       : null;
   if (formData) delete headers["Content-Type"];
-  setConnectionStatus("Conectando…", "loading", "Conexión en curso");
+  setConnectionStatus(t("request.connecting"), "loading", t("request.inProgress"));
   byId("sendBtn").disabled = true;
   byId("cancelRequestBtn").disabled = false;
   state.activeExecutionId = crypto.randomUUID();
@@ -649,8 +977,9 @@ async function sendRequest() {
     } catch {
       /* texto no JSON */
     }
-    renderResponseBody(body || "(sin contenido)");
+    renderResponseBody(body || t("response.emptyContent"));
     runAssertions(result, body);
+    applyResponseChain(request, body);
     byId("responseHeaders").textContent = Object.entries(result.headers)
       .map(([key, value]) => `${key}: ${value}`)
       .join("\n");
@@ -658,7 +987,7 @@ async function sendRequest() {
     setConnectionStatus(
       `${result.status} ${result.statusText}`,
       ok ? "success" : "error",
-      `${result.duration} ms · ${formatBytes(result.size)} · ${ok ? "Conectado" : "Error HTTP"}`,
+      `${result.duration} ms · ${formatBytes(result.size)} · ${ok ? t("request.connected") : t("request.httpError")}`,
     );
     addHistory({
       ...request,
@@ -668,16 +997,31 @@ async function sendRequest() {
       createdAt: new Date().toISOString(),
     });
     showToast(
-      ok ? "Respuesta recibida" : `Respuesta HTTP ${result.status}`,
+      ok ? t("toast.responseReceived") : tFormat("toast.httpResponse", { status: result.status }),
       ok ? "success" : "error",
     );
   } catch (error) {
-    setConnectionStatus("Sin conexión", "error", error.message);
-    showToast(`Error de red: ${error.message}`, "error");
+    const detail = error.errorType ? `${t(`network.${error.errorType}`)} · ${error.message}` : error.message;
+    setConnectionStatus(t("response.offline"), "error", detail);
+    showToast(tFormat("toast.networkError", { message: detail }), "error");
   } finally {
     byId("sendBtn").disabled = false;
     byId("cancelRequestBtn").disabled = true;
     state.activeExecutionId = null;
+  }
+}
+async function applyResponseChain(request, body) {
+  const name = request.chaining?.variableName;
+  if (!name) return;
+  try {
+    const value = request.chaining.jsonPath
+      ? request.chaining.jsonPath.split(".").reduce((current, key) => current?.[key], JSON.parse(body))
+      : body;
+    activeEnvironment().variables[name] = String(value ?? "");
+    await persistConfig();
+    showToast(tFormat("toast.variableSaved", { name: `{{${name}}}` }), "success");
+  } catch {
+    showToast(t("error.responseJson"), "error");
   }
 }
 async function cancelRequest() {
@@ -726,9 +1070,10 @@ function compareResponse() {
   );
 }
 function runAssertions(result, body) {
-  const expectedStatus = byId("assertStatus")?.value;
-  const header = byId("assertHeader")?.value.trim().toLowerCase();
-  const jsonPath = byId("assertJsonPath")?.value.trim();
+  const tests = collectTests();
+  const expectedStatus = tests.expectedStatus;
+  const header = tests.header.trim().toLowerCase();
+  const jsonPath = tests.jsonPath.trim();
   const failures = [];
   if (expectedStatus && Number(expectedStatus) !== result.status)
     failures.push(`status expected ${expectedStatus}, got ${result.status}`);
@@ -745,33 +1090,54 @@ function runAssertions(result, body) {
         .split(".")
         .reduce((current, key) => current?.[key], JSON.parse(body));
       if (value === undefined) failures.push(`missing JSON path: ${jsonPath}`);
+      else if (tests.operator === "equals" && String(value) !== tests.expectedValue)
+        failures.push(`JSON path ${jsonPath} expected ${tests.expectedValue}, got ${value}`);
+      else if (tests.operator === "contains" && !String(value).includes(tests.expectedValue))
+        failures.push(`JSON path ${jsonPath} does not contain ${tests.expectedValue}`);
     } catch {
       failures.push("response is not valid JSON");
     }
   }
-  if (failures.length)
-    showToast(`Assertions failed: ${failures.join("; ")}`, "error");
+  const results = byId("assertionResults");
+  if (failures.length) {
+    results.textContent = `${t("assertion.fail")}:\n${failures.map((failure) => `× ${failure}`).join("\n")}`;
+    results.className = "assertion-results error";
+    showToast(`${t("assertion.fail")}: ${failures.join("; ")}`, "error");
+  } else if (expectedStatus || header || jsonPath) {
+    results.textContent = `✓ ${t("assertion.pass")}`;
+    results.className = "assertion-results success";
+  } else {
+    results.textContent = "";
+  }
 }
 function saveResponseVariable() {
   if (!state.currentResponse) return showToast("Run a request first", "error");
-  const name = window.prompt("Variable name");
-  const jsonPath = window.prompt("JSON path", "");
-  if (!name) return;
-  try {
-    const value = jsonPath
-      ? jsonPath
-          .split(".")
-          .reduce(
-            (current, key) => current?.[key],
-            JSON.parse(state.currentResponse),
-          )
-      : state.currentResponse;
-    activeEnvironment().variables[name] = String(value ?? "");
-    persistConfig();
-    showToast(`Saved {{${name}}}`, "success");
-  } catch {
-    showToast("Could not read response JSON", "error");
-  }
+  openModal({
+    title: t("dialog.saveVariable.title"),
+    description: t("dialog.saveVariable.description"),
+    label: t("dialog.saveVariable.label"),
+    confirm: t("common.save"),
+    action: (name) => openModal({
+      title: t("dialog.saveVariablePath.title"),
+      description: t("dialog.saveVariablePath.description"),
+      label: t("dialog.saveVariablePath.label"),
+      confirm: t("common.save"),
+      optionalInput: true,
+      value: "",
+      action: async (jsonPath) => {
+        try {
+          const value = jsonPath
+            ? jsonPath.split(".").reduce((current, key) => current?.[key], JSON.parse(state.currentResponse))
+            : state.currentResponse;
+          activeEnvironment().variables[name] = String(value ?? "");
+          await persistConfig();
+          showToast(tFormat("toast.variableSaved", { name: `{{${name}}}` }), "success");
+        } catch {
+          showToast(t("error.responseJson"), "error");
+        }
+      },
+    }),
+  });
 }
 function exportHistory() {
   const link = document.createElement("a");
@@ -837,7 +1203,7 @@ async function copyResponse() {
     await navigator.clipboard.writeText(byId("responseBody").textContent);
     showToast(t("toast.responseCopied"), "success");
   } catch {
-    showToast("No se pudo copiar la respuesta", "error");
+    showToast(t("error.copy"), "error");
   }
 }
 function switchTab(name) {
@@ -864,6 +1230,15 @@ function switchResponseTab(name) {
 function renderDiff() {
   const previous = state.previousResponse || "";
   const current = state.currentResponse || "";
+  try {
+    const changes = diffJson(JSON.parse(previous), JSON.parse(current));
+    byId("responseDiff").textContent = changes.length
+      ? changes.map(({ path, before, after }) => `${path}\n- ${JSON.stringify(before)}\n+ ${JSON.stringify(after)}`).join("\n\n")
+      : "JSON objects match.";
+    return;
+  } catch {
+    // Non-JSON responses use the line diff below.
+  }
   const previousLines = previous.split("\n"),
     currentLines = current.split("\n");
   byId("responseDiff").textContent = currentLines
@@ -873,6 +1248,41 @@ function renderDiff() {
         : `+ ${line}\n- ${previousLines[index] || ""}`,
     )
     .join("\n");
+}
+function diffJson(before, after, path = "$") {
+  if (JSON.stringify(before) === JSON.stringify(after)) return [];
+  if (!before || !after || typeof before !== "object" || typeof after !== "object")
+    return [{ path, before, after }];
+  const keys = new Set([...Object.keys(before), ...Object.keys(after)]);
+  return [...keys].flatMap((key) => diffJson(before[key], after[key], `${path}.${key}`));
+}
+function startResponseResize(event) {
+  const section = event.currentTarget.closest(".response-section");
+  const startY = event.clientY;
+  const startHeight = section.getBoundingClientRect().height;
+  event.currentTarget.setPointerCapture(event.pointerId);
+  const resize = (moveEvent) => {
+    setResponseHeight(section, startHeight + (moveEvent.clientY - startY));
+  };
+  const stop = () => {
+    event.currentTarget.removeEventListener("pointermove", resize);
+    event.currentTarget.removeEventListener("pointerup", stop);
+  };
+  event.currentTarget.addEventListener("pointermove", resize);
+  event.currentTarget.addEventListener("pointerup", stop);
+}
+function handleResponseResizeKeyboard(event) {
+  if (!['ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) return;
+  event.preventDefault();
+  const section = event.currentTarget.closest('.response-section');
+  const current = section.getBoundingClientRect().height;
+  const height = event.key === 'Home' ? 230 : event.key === 'End' ? window.innerHeight - 120 : current + (event.key === 'ArrowDown' ? 24 : -24);
+  setResponseHeight(section, height);
+}
+function setResponseHeight(section, height) {
+  const next = Math.round(Math.max(230, Math.min(window.innerHeight - 120, height)));
+  section.style.height = `${next}px`;
+  section.querySelector('.response-resize-handle')?.setAttribute('aria-valuenow', String(next));
 }
 function transformJson(pretty) {
   const editor = byId("bodyEditor");
@@ -885,13 +1295,13 @@ function transformJson(pretty) {
       "success",
     );
   } catch {
-    showToast("El body no contiene JSON válido", "error");
+    showToast(t("error.jsonBody"), "error");
   }
 }
 
 // ── Historial ─────────────────────────────────────────────────────────────
 function addHistory(request) {
-  state.config.history.unshift(request);
+  state.config.history.unshift(normalizeRequest(request));
   state.config.history = state.config.history.slice(0, 20);
   persistConfig();
   renderHistory();
@@ -912,7 +1322,7 @@ function renderHistory() {
     button.addEventListener("click", () => {
       showRequestContent();
       hydrateRequest(entry);
-      showToast("Petición restaurada desde el historial", "success");
+      showToast(t("toast.historyRestored"), "success");
     });
     list.appendChild(button);
   });
@@ -921,10 +1331,10 @@ function renderHistory() {
 // ── Modales, notificaciones e interacción ─────────────────────────────────
 function openCollectionDialog() {
   openModal({
-    title: "Nueva colección",
-    description: "Crea un archivo JSON para guardar tus peticiones.",
-    label: "Nombre de la colección",
-    confirm: "Crear",
+    title: t("dialog.newCollection.title"),
+    description: t("dialog.newCollection.description"),
+    label: t("dialog.newCollection.label"),
+    confirm: t("common.create"),
     action: async (name) => {
       const result = await window.electronAPI.createCollection({
         name,
@@ -932,7 +1342,7 @@ function openCollectionDialog() {
       });
       if (!result.success)
         return showToast(
-          result.message || "No se pudo crear la colección",
+          result.message || t("error.saveRequest"),
           "error",
         );
       await window.electronAPI.importCollection(result.path);
@@ -948,17 +1358,17 @@ function saveRequest(saveAsNew = false) {
     return showToast(t("validation.saveUrl"), "error");
   if (!state.collections.length) return openCollectionDialog();
   openModal({
-    title: "Guardar request",
-    description: "Asigna un nombre y una colección de destino.",
-    label: "Nombre de la request",
-    confirm: "Guardar",
+    title: t("dialog.saveRequest.title"),
+    description: t("dialog.saveRequest.description"),
+    label: t("dialog.saveRequest.label"),
+    confirm: t("common.save"),
     collections: true,
     action: async (name, collectionPath) => {
       const collection = state.collections.find(
         (item) => item.path === collectionPath,
       );
       if (!collection)
-        return showToast("Selecciona una colección válida", "error");
+        return showToast(t("error.validCollection"), "error");
       const request = collectRequest(name);
       if (saveAsNew) request.id = crypto.randomUUID();
       const currentIndex =
@@ -975,7 +1385,7 @@ function saveRequest(saveAsNew = false) {
         collection,
       );
       if (!result.success)
-        return showToast("No se pudo guardar la request", "error");
+        return showToast(t("error.saveRequest"), "error");
       state.activeRequest = request;
       state.activeCollectionPath = collectionPath;
       await loadSavedCollections();
@@ -988,33 +1398,53 @@ function openModal(options) {
   state.modalAction = options.action;
   byId("modalTitle").textContent = options.title;
   byId("modalDescription").textContent = options.description;
-  byId("modalNameLabel").childNodes[0].textContent = options.label;
+  const input = byId("modalNameInput");
+  const inputLabel = byId("modalNameLabel");
+  inputLabel.hidden = Boolean(options.noInput);
+  input.required = !options.noInput && !options.optionalInput;
+  inputLabel.querySelector("span").textContent = options.label || t("form.name");
   byId("modalConfirmBtn").textContent = options.confirm;
-  const select = byId("modalCollectionSelect"),
-    label = byId("modalCollectionLabel");
-  label.hidden = !options.collections;
-  select.required = !!options.collections;
-  select.innerHTML = state.collections
+  byId("modalCancelBtn").textContent = t("common.cancel");
+  const select = byId("modalCollectionSelect");
+  const selectLabel = byId("modalCollectionLabel");
+  const choices = options.choices || (options.collections
+    ? state.collections.map((item) => ({
+        value: item.path,
+        label: item.info?.name || item.name,
+      }))
+    : []);
+  selectLabel.hidden = choices.length === 0;
+  select.required = choices.length > 0;
+  selectLabel.querySelector("span").textContent =
+    options.choiceLabel || t("form.collection");
+  select.innerHTML = choices
     .map(
-      (item) =>
-        `<option value="${escapeHtml(item.path)}">${escapeHtml(item.info?.name || item.name)}</option>`,
+      (choice) =>
+        `<option value="${escapeHtml(choice.value)}">${escapeHtml(choice.label)}</option>`,
     )
     .join("");
-  if (state.activeCollectionPath) select.value = state.activeCollectionPath;
-  byId("modalNameInput").value = state.activeRequest?.name || "";
+  if (options.collections && state.activeCollectionPath)
+    select.value = state.activeCollectionPath;
+  input.value = options.value ?? (state.activeRequest?.name || "");
+  byId("modalBackdrop").style.zIndex = byId("userModalBackdrop").hidden
+    ? ""
+    : "26";
   byId("modalBackdrop").hidden = false;
-  byId("modalNameInput").focus();
+  (options.noInput && choices.length ? select : input).focus();
 }
 async function submitModal(event) {
   event.preventDefault();
-  const name = byId("modalNameInput").value.trim();
-  if (!name) return;
+  const input = byId("modalNameInput");
+  const name = input.value.trim();
+  if (input.required && !name) return;
   const action = state.modalAction;
+  const choice = byId("modalCollectionSelect").value;
   closeModal();
-  await action(name, byId("modalCollectionSelect").value);
+  await action?.(name, choice);
 }
 function closeModal() {
   byId("modalBackdrop").hidden = true;
+  byId("modalBackdrop").style.zIndex = "";
   state.modalAction = null;
 }
 
@@ -1058,26 +1488,64 @@ function renderEnvironmentSettings() {
   byId("environmentTokenInput").value = environment.variables?.token || "";
   byId("requestTimeoutInput").value = state.config.requestTimeout || 30000;
   byId("deleteEnvironmentBtn").disabled = state.config.environments.length <= 1;
+  renderVariableRows("environmentVariablesRows", environment.variables || {});
+  renderVariableRows("globalVariablesRows", state.config.globalVariables || {});
+}
+function renderVariableRows(containerId, variables) {
+  const container = byId(containerId);
+  container.innerHTML = "";
+  Object.entries(variables).forEach(([name, value]) => addVariableRow(containerId, name, value));
+}
+function addVariableRow(containerId, name = "", value = "") {
+  const row = document.createElement("div");
+  row.className = "variable-row";
+  row.innerHTML = `<input class="variable-name" placeholder="name" value="${escapeHtml(name)}"><input class="variable-value" type="password" placeholder="value" value="${escapeHtml(value)}"><button type="button" class="variable-visibility" title="Show value">◉</button><button type="button" class="btn-remove" aria-label="Remove variable">×</button>`;
+  row.querySelector(".variable-visibility").addEventListener("click", () => {
+    const input = row.querySelector(".variable-value");
+    input.type = input.type === "password" ? "text" : "password";
+  });
+  row.querySelector(".btn-remove").addEventListener("click", () => row.remove());
+  byId(containerId).appendChild(row);
+}
+function readVariableRows(containerId) {
+  return Object.fromEntries([...byId(containerId).querySelectorAll(".variable-row")]
+    .map((row) => [row.querySelector(".variable-name").value.trim(), row.querySelector(".variable-value").value])
+    .filter(([name]) => name));
 }
 function addEnvironment() {
-  const name = window.prompt("Nombre del entorno");
-  if (!name?.trim()) return;
-  const environment = {
-    id: crypto.randomUUID(),
-    name: name.trim(),
-    variables: { baseUrl: "", token: "" },
-  };
-  state.config.environments.push(environment);
-  state.config.activeEnvironmentId = environment.id;
-  renderAccountEnvironments();
+  openModal({
+    title: t("dialog.newEnvironment.title"),
+    description: t("dialog.newEnvironment.description"),
+    label: t("dialog.newEnvironment.label"),
+    confirm: t("common.create"),
+    action: async (name) => {
+      const environment = {
+        id: crypto.randomUUID(),
+        name,
+        variables: { baseUrl: "", token: "" },
+      };
+      state.config.environments.push(environment);
+      state.config.activeEnvironmentId = environment.id;
+      renderAccountEnvironments();
+    },
+  });
 }
 function deleteEnvironment() {
   const id = byId("accountEnvironmentSelect").value;
-  state.config.environments = state.config.environments.filter(
-    (env) => env.id !== id,
-  );
-  state.config.activeEnvironmentId = state.config.environments[0].id;
-  renderAccountEnvironments();
+  if (state.config.environments.length <= 1) return;
+  openModal({
+    title: t("dialog.deleteEnvironment.title"),
+    description: t("dialog.deleteEnvironment.description"),
+    confirm: t("common.delete"),
+    noInput: true,
+    action: async () => {
+      state.config.environments = state.config.environments.filter(
+        (env) => env.id !== id,
+      );
+      state.config.activeEnvironmentId = state.config.environments[0].id;
+      renderAccountEnvironments();
+    },
+  });
 }
 
 function closeUserWindow() {
@@ -1093,6 +1561,8 @@ async function saveUserSettings(event) {
   );
   environment.variables.baseUrl = byId("environmentBaseUrlInput").value.trim();
   environment.variables.token = byId("environmentTokenInput").value.trim();
+  environment.variables = { ...environment.variables, ...readVariableRows("environmentVariablesRows") };
+  state.config.globalVariables = readVariableRows("globalVariablesRows");
   state.config.activeEnvironmentId = environment.id;
   state.config.requestTimeout = Math.max(
     1000,
@@ -1106,12 +1576,28 @@ async function saveUserSettings(event) {
   closeUserWindow();
   showToast(t("account.save"), "success");
 }
-function showToast(message, type = "success") {
+function showToast(message, type = "success", action = null) {
   const toast = document.createElement("div");
   toast.className = `toast ${type}`;
   toast.textContent = message;
+  if (action) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "toast-action";
+    button.textContent = t("common.undo");
+    button.addEventListener("click", async () => {
+      await action();
+      toast.remove();
+    });
+    toast.appendChild(button);
+  }
   byId("toastContainer").appendChild(toast);
   setTimeout(() => toast.remove(), 3500);
+}
+function offerUndo(action) {
+  state.lastUndo = action;
+  showToast(t("toast.moveUndo"), "success", action);
+  window.setTimeout(() => { if (state.lastUndo === action) state.lastUndo = null; }, 7000);
 }
 function handleKeyboardShortcuts(event) {
   const modal = !byId("userModalBackdrop").hidden
@@ -1160,7 +1646,7 @@ async function importCollection(path) {
   if (result.success) {
     await loadSavedCollections();
     showToast(t("toast.collectionImported"), "success");
-  } else showToast(result.error || "No se pudo importar", "error");
+  } else showToast(result.error || t("error.import"), "error");
 }
 function initDragAndDrop(element) {
   ["dragenter", "dragover", "dragleave", "drop"].forEach((name) =>
@@ -1177,9 +1663,10 @@ function initDragAndDrop(element) {
   );
   element.addEventListener("drop", async (event) => {
     element.classList.remove("drag-over");
+    if (Array.from(event.dataTransfer.types).some((type) => type.startsWith("application/x-openapi-"))) return;
     const file = event.dataTransfer.files[0];
     if (file?.name.endsWith(".json")) await importCollection(file.path);
-    else showToast("Solo se pueden importar archivos JSON", "error");
+    else showToast(t("error.dropJson"), "error");
   });
 }
 // ── Utilidades ────────────────────────────────────────────────────────────

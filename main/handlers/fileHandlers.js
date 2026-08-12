@@ -20,10 +20,10 @@ ipcMain.handle("select-file", async () => {
   return null;
 });
 
-// Returns a file path only; the main process reads it later for multipart uploads.
+// Returns paths only; the main process reads them later for multipart uploads.
 ipcMain.handle("select-upload-file", async () => {
-  const result = await dialog.showOpenDialog({ properties: ["openFile"] });
-  return result.canceled ? null : result.filePaths[0];
+  const result = await dialog.showOpenDialog({ properties: ["openFile", "multiSelections"] });
+  return result.canceled ? [] : result.filePaths;
 });
 
 // Handler para leer el contenido de un archivo

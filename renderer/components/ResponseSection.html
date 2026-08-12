@@ -25,22 +25,24 @@
       >
         Limpiar
       </button>
-      <button class="btn-text-small" id="cancelRequestBtn" disabled>
+      <button class="btn-text-small" id="cancelRequestBtn" disabled data-i18n="response.cancel">
         Cancelar
       </button>
-      <button class="btn-text-small" id="compareResponseBtn">Compare</button>
-      <button class="btn-text-small" id="exportHistoryBtn">
-        Export history
+      <button class="btn-text-small" id="compareResponseBtn" data-i18n="response.compare">Comparar</button>
+      <button class="btn-text-small" id="exportHistoryBtn" data-i18n="response.exportHistory">
+        Exportar historial
       </button>
       <button
         class="btn-text-small"
         id="fullscreenResponseBtn"
-        aria-label="Toggle response fullscreen"
+        data-i18n-title="response.fullscreen"
+        title="Alternar pantalla completa de respuesta"
       >
         ⛶
       </button>
     </div>
   </div>
+  <div class="response-resize-handle" role="separator" aria-orientation="horizontal" aria-label="Resize response panel" aria-valuemin="230" aria-valuemax="1200" aria-valuenow="230" tabindex="0" title="Resize response panel"></div>
   <div class="response-tabs">
     <button
       class="response-tab active"
@@ -56,22 +58,22 @@
     >
       Headers
     </button>
-    <button class="response-tab" data-response-tab="diff">Diff</button>
+    <button class="response-tab" data-response-tab="diff" data-i18n="response.diff">Diferencias</button>
   </div>
   <div class="response-content">
     <div class="response-panel active" id="responseBodyPanel">
-      <pre class="response-body" id="responseBody">
-La respuesta aparecerá aquí...</pre
+      <pre class="response-body" id="responseBody" data-i18n="response.empty">
+La respuesta aparecerá aquí…</pre
       >
     </div>
     <div class="response-panel" id="responseHeadersPanel">
-      <pre class="response-headers" id="responseHeaders">
-Los headers aparecerán aquí...</pre
+      <pre class="response-headers" id="responseHeaders" data-i18n="response.headersEmpty">
+Los headers aparecerán aquí…</pre
       >
     </div>
     <div class="response-panel" id="responseDiffPanel">
-      <pre class="response-body" id="responseDiff">
-Run two requests to compare them.</pre
+      <pre class="response-body" id="responseDiff" data-i18n="response.diffEmpty">
+Ejecuta dos requests para compararlas.</pre
       >
     </div>
   </div>

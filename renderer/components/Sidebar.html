@@ -8,6 +8,7 @@
       <button
         class="menu-trigger"
         id="collectionsMenuTrigger"
+        data-i18n-title="sidebar.options"
         title="Opciones de colecciones"
       >
         +
@@ -17,6 +18,9 @@
         <button class="menu-item menu-item-primary" id="newCollectionBtn">
           <span class="menu-icon">+</span
           ><span data-i18n="sidebar.newCollection">Nueva colección</span>
+        </button>
+        <button class="menu-item" id="newFolderBtn">
+          <span class="menu-icon">□</span><span>Nueva carpeta</span>
         </button>
         <button class="menu-item" id="newRequestBtn">
           <span class="menu-icon">›</span
@@ -48,8 +52,9 @@
     <input
       id="collectionSearchInput"
       type="search"
-      placeholder="Search collections and requests"
-      aria-label="Search collections and requests"
+      data-i18n-placeholder="sidebar.search"
+      placeholder="Buscar colecciones y requests"
+      aria-label="Buscar colecciones y requests"
     />
   </div>
   <div class="collections-list" id="collectionsList">

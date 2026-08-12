@@ -44,6 +44,23 @@ test("imports an OpenAPI specification into runnable requests", () => {
   assert.equal(collection.requests[0].url, "https://api.example.com/pets");
 });
 
+test("imports OpenAPI schema examples and declared security", () => {
+  const collection = importOpenApi({
+    openapi: "3.0.0",
+    info: { title: "Secured API" },
+    components: {
+      securitySchemes: { apiKey: { type: "apiKey", in: "header", name: "X-API-Key" } },
+      schemas: { Payload: { type: "object", properties: { active: { type: "boolean" }, name: { type: "string" } } } },
+    },
+    paths: {
+      "/items": { post: { security: [{ apiKey: [] }], requestBody: { content: { "application/json": { schema: { $ref: "#/components/schemas/Payload" } } } } } },
+    },
+  });
+  const request = collection.requests[0];
+  assert.deepEqual(JSON.parse(request.body.content), { active: false, name: "string" });
+  assert.deepEqual(request.auth, { type: "apikey", keyName: "X-API-Key", token: "{{token}}" });
+});
+
 test("crea una colección con estructura compatible", () => {
   const collection = createCollectionData({ name: "API de prueba" });
   assert.equal(collection.info.name, "API de prueba");

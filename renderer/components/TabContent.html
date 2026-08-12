@@ -89,14 +89,14 @@
       ></textarea>
       <div class="key-value-editor form-data-editor" id="formDataEditor" hidden>
         <div class="kv-header">
-          <span>Key</span><span>Value</span><span></span>
+          <span>Key</span><span>Value / file</span><span>MIME</span><span></span>
         </div>
         <div class="kv-rows" id="formDataRows">
           <div class="kv-row">
             <input class="kv-key" placeholder="nombre" /><input
               class="kv-value"
               placeholder="valor"
-            /><button class="btn-remove" type="button">×</button>
+            /><input class="kv-mime" placeholder="auto" /><button class="btn-remove" type="button">×</button>
           </div>
         </div>
         <button class="btn-add-row" id="addFormDataBtn" type="button">
@@ -130,51 +130,60 @@
   </div>
   <div class="tab-panel" id="testingPanel">
     <section class="testing-panel">
-      <h3>Endpoint testing</h3>
-      <p>
+      <h3 data-i18n="testing.title">Pruebas de endpoint</h3>
+      <p data-i18n="testing.description">
         Run controlled bursts only against APIs you own or are authorized to
         test.
       </p>
       <div class="testing-controls">
         <label
-          >Requests<input
+          ><span data-i18n="testing.requests">Peticiones</span><input
             id="testRequestCount"
             type="number"
             min="1"
             max="50"
             value="5" /></label
         ><label
-          >Concurrency<input
+          ><span data-i18n="testing.concurrency">Concurrencia</span><input
             id="testConcurrency"
             type="number"
             min="1"
             max="10"
             value="1" /></label
         ><button class="btn-send" id="runLimitTestBtn" type="button">
-          <span>Run test</span>
+          <span data-i18n="testing.run">Ejecutar prueba</span>
         </button>
       </div>
-      <pre class="testing-results" id="limitTestResults">No test has run.</pre>
+      <pre class="testing-results" id="limitTestResults" data-i18n="testing.empty">No se ha ejecutado ninguna prueba.</pre>
       <div class="testing-controls assertions">
         <label
-          >Expected status<input
+          ><span data-i18n="testing.expectedStatus">Estado esperado</span><input
             id="assertStatus"
             type="number"
             placeholder="200" /></label
         ><label
-          >Required header<input
+          ><span data-i18n="testing.requiredHeader">Header requerido</span><input
             id="assertHeader"
             placeholder="content-type" /></label
         ><label
-          >JSON path<input id="assertJsonPath" placeholder="data.id" /></label
+          ><span data-i18n="testing.jsonPath">Ruta JSON</span><input id="assertJsonPath" placeholder="data.id" /></label
+        ><label
+          ><span data-i18n="testing.operator">Operador</span><select id="assertOperator"><option value="exists">Existe</option><option value="equals">Es igual a</option><option value="contains">Contiene</option></select></label
+        ><label
+          ><span data-i18n="testing.expectedValue">Valor esperado</span><input id="assertExpectedValue" placeholder="123" /></label
         ><button
           class="editor-action"
           id="saveResponseVariableBtn"
           type="button"
         >
-          Save response value
+          <span data-i18n="testing.saveResponse">Guardar valor de respuesta</span>
         </button>
       </div>
+      <div class="testing-controls chaining">
+        <label><span data-i18n="testing.chainName">Guardar respuesta como</span><input id="chainVariableName" placeholder="accessToken" /></label>
+        <label><span data-i18n="testing.chainPath">Ruta de respuesta</span><input id="chainJsonPath" placeholder="data.token" /></label>
+      </div>
+      <pre class="assertion-results" id="assertionResults" aria-live="polite"></pre>
     </section>
   </div>
 </div>
