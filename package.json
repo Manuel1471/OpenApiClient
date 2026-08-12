@@ -5,12 +5,47 @@
   "repository": "https://github.com/Manuel1471/OpenApiClient.git",
   "author": "Manuel Garcia <manuel-garccia@hotmail.com>",
   "license": "MIT",
+  "engines": {
+    "node": ">=26.0.0",
+    "npm": ">=11.0.0"
+  },
   "scripts": {
     "start": "electron .",
     "dev": "NODE_ENV=development electron .",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node --test test/**/*.test.js",
+    "test:e2e": "node --test test/electron.e2e.test.js",
+    "dist": "electron-builder",
+    "dist:mac": "electron-builder --mac dmg",
+    "dist:win": "electron-builder --win nsis",
+    "dist:linux": "electron-builder --linux AppImage"
   },
   "devDependencies": {
-    "electron": "^39.2.4"
+    "electron": "^39.2.4",
+    "electron-builder": "^26.0.12",
+    "playwright": "^1.54.1",
+    "png-to-ico": "^3.0.2"
+  },
+  "dependencies": {
+    "yaml": "^2.8.1"
+  },
+  "build": {
+    "appId": "com.manuelgarcia.openapi-client",
+    "productName": "OpenAPI Client",
+    "mac": {
+      "target": "dmg",
+      "icon": "build/icon.icns"
+    },
+    "win": {
+      "target": "nsis",
+      "icon": "build/icon.ico"
+    },
+    "linux": {
+      "target": "AppImage",
+      "icon": "build/icon.png"
+    },
+    "afterSign": "scripts/notarize.js"
+  },
+  "allowScripts": {
+    "electron@39.2.4": true
   }
 }

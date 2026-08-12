@@ -1,53 +1,183 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>OpenAPI Client</title>
-    <link rel="stylesheet" href="assets/css/main.css">
-</head>
-<body>
+    <link rel="stylesheet" href="assets/css/main.css" />
+  </head>
+  <body>
     <div id="app">
-        <!-- TopBar Component -->
-        <div id="topBarContainer"></div>
+      <!-- TopBar Component -->
+      <div id="topBarContainer"></div>
 
-        <div class="container">
-            <!-- Sidebar Component -->
-            <div id="sidebarContainer"></div>
+      <div class="container">
+        <!-- Sidebar Component -->
+        <div id="sidebarContainer"></div>
 
-            <!-- Área principal -->
-            <main class="main-content">
-                <!-- Estado vacío cuando no hay request seleccionada -->
-                <div class="empty-request-state" id="emptyRequestState">
-                    <div class="empty-request-content">
-                        <div class="empty-request-icon">⚡</div>
-                        <h2 class="empty-request-title">Esperando crear una petición</h2>
-                        <p class="empty-request-text">Selecciona una request de una colección o crea una nueva</p>
-                    </div>
-                </div>
+        <!-- Área principal -->
+        <main class="main-content">
+          <!-- Estado vacío cuando no hay request seleccionada -->
+          <div class="empty-request-state" id="emptyRequestState">
+            <div class="empty-request-content">
+              <div class="empty-request-icon">&gt;_</div>
+              <p class="empty-request-kicker" data-i18n="empty.ready">
+                OPENAPI CLIENT · LISTO
+              </p>
+              <h2 class="empty-request-title" data-i18n="empty.title">
+                Esperando una petición
+              </h2>
+              <p class="empty-request-text" data-i18n="empty.description">
+                Selecciona una request de una colección o crea una nueva.
+              </p>
+            </div>
+          </div>
 
-                <!-- Contenido de request (oculto inicialmente) -->
-                <div class="request-content" id="requestContent" style="display: none;">
-                    <!-- RequestBar Component -->
-                    <div id="requestBarContainer"></div>
+          <!-- Contenido de request (oculto inicialmente) -->
+          <div
+            class="request-content"
+            id="requestContent"
+            style="display: none"
+          >
+            <!-- RequestBar Component -->
+            <div id="requestBarContainer"></div>
 
-                    <!-- RequestTabs Component -->
-                    <div id="requestTabsContainer"></div>
+            <!-- RequestTabs Component -->
+            <div id="requestTabsContainer"></div>
 
-                    <!-- TabContent Component -->
-                    <div id="tabContentContainer"></div>
+            <!-- TabContent Component -->
+            <div id="tabContentContainer"></div>
 
-                    <!-- ResponseSection Component -->
-                    <div id="responseSectionContainer"></div>
-                </div>
-            </main>
-        </div>
+            <!-- ResponseSection Component -->
+            <div id="responseSectionContainer"></div>
+          </div>
+        </main>
+      </div>
     </div>
-    
+
+    <div class="toast-container" id="toastContainer" aria-live="polite"></div>
+    <div class="modal-backdrop" id="modalBackdrop" hidden>
+      <form class="modal-card" id="modalForm">
+        <h2 id="modalTitle">Guardar request</h2>
+        <p id="modalDescription"></p>
+        <label id="modalNameLabel"
+          ><span data-i18n="form.name">Nombre</span
+          ><input id="modalNameInput" required maxlength="80" autofocus
+        /></label>
+        <label id="modalCollectionLabel"
+          ><span data-i18n="form.collection">Colección</span
+          ><select id="modalCollectionSelect"></select
+        ></label>
+        <div class="modal-actions">
+          <button type="button" class="modal-cancel" id="modalCancelBtn">
+            Cancelar</button
+          ><button class="modal-confirm" id="modalConfirmBtn" type="submit">
+            Guardar
+          </button>
+        </div>
+      </form>
+    </div>
+    <div class="modal-backdrop" id="userModalBackdrop" hidden>
+      <form class="modal-card" id="userModalForm">
+        <h2 data-i18n="account.title">Información de cuenta</h2>
+        <p data-i18n="account.description">
+          Personaliza tu perfil y el idioma de la aplicación.
+        </p>
+        <div class="settings-tabs" role="tablist">
+          <button
+            class="settings-tab active"
+            type="button"
+            data-settings-tab="profile"
+          >
+            Profile</button
+          ><button
+            class="settings-tab"
+            type="button"
+            data-settings-tab="environment"
+          >
+            Environments</button
+          ><button
+            class="settings-tab"
+            type="button"
+            data-settings-tab="advanced"
+          >
+            Advanced
+          </button>
+        </div>
+        <div class="settings-panel active" data-settings-panel="profile">
+          <label
+            ><span data-i18n="account.name">Nombre</span
+            ><input id="accountNameInput" required maxlength="80"
+          /></label>
+          <label
+            ><span data-i18n="account.language">Idioma</span
+            ><select id="languageSelect">
+              <option value="es">Español</option>
+              <option value="en">English</option>
+              <option value="fr">Français</option>
+              <option value="de">Deutsch</option>
+            </select></label
+          >
+        </div>
+        <div class="settings-panel" data-settings-panel="environment">
+          <div class="environment-settings">
+            <div class="environment-settings-header">
+              <span>Entorno</span
+              ><button type="button" id="addEnvironmentBtn">+ Nuevo</button
+              ><button type="button" id="deleteEnvironmentBtn">Eliminar</button>
+            </div>
+            <label
+              >Entorno<select id="accountEnvironmentSelect"></select
+            ></label>
+            <label
+              >Base URL<input
+                id="environmentBaseUrlInput"
+                placeholder="https://api.example.com"
+            /></label>
+            <label
+              >Token<input
+                id="environmentTokenInput"
+                type="password"
+                placeholder="{{token}}"
+            /></label>
+            <label
+              >Timeout (ms)<input
+                id="requestTimeoutInput"
+                type="text"
+                inputmode="numeric"
+                pattern="[0-9]*"
+                aria-describedby="timeoutHint"
+            /></label>
+            <p class="field-hint" id="timeoutHint">
+              Minimum 1000 ms · default 30000 ms
+            </p>
+          </div>
+        </div>
+        <div class="settings-panel" data-settings-panel="advanced">
+          <p class="field-hint">
+            Secrets are stored with your system keychain when available. Login
+            remains disabled.
+          </p>
+        </div>
+        <div class="modal-actions">
+          <button
+            type="button"
+            class="modal-cancel"
+            id="userModalCancelBtn"
+            data-i18n="common.cancel"
+          >
+            Cancelar</button
+          ><button class="modal-confirm" type="submit" data-i18n="account.save">
+            Guardar cambios
+          </button>
+        </div>
+      </form>
+    </div>
+
     <!-- Component Loader -->
     <script src="components/ComponentLoader.js"></script>
+    <script src="assets/js/translations.js"></script>
     <!-- Scripts del renderer -->
     <script src="assets/js/renderer.js"></script>
-</body>
+  </body>
 </html>
-

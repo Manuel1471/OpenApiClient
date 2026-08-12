@@ -1,15 +1,33 @@
 <!-- RequestBar Component -->
 <div class="request-bar">
-    <select class="method-select" id="methodSelect">
-        <option value="GET">GET</option>
-        <option value="POST">POST</option>
-        <option value="PUT">PUT</option>
-        <option value="PATCH">PATCH</option>
-        <option value="DELETE">DELETE</option>
-        <option value="HEAD">HEAD</option>
-        <option value="OPTIONS">OPTIONS</option>
-    </select>
-    <input type="text" class="url-input" id="urlInput" placeholder="https://api.ejemplo.com/endpoint" value="">
-    <button class="btn-send" id="sendBtn">Enviar</button>
+  <span class="request-prompt">›</span>
+  <select
+    class="environment-select"
+    id="environmentSelect"
+    data-i18n-title="request.environment"
+    title="Entorno activo"
+  ></select>
+  <select class="method-select" id="methodSelect">
+    <option value="GET">GET</option>
+    <option value="POST">POST</option>
+    <option value="PUT">PUT</option>
+    <option value="PATCH">PATCH</option>
+    <option value="DELETE">DELETE</option>
+    <option value="HEAD">HEAD</option>
+    <option value="OPTIONS">OPTIONS</option>
+  </select>
+  <input
+    type="text"
+    class="url-input"
+    id="urlInput"
+    data-i18n-placeholder="request.urlPlaceholder"
+    placeholder="https://api.ejemplo.com/endpoint"
+    value=""
+  />
+  <button class="btn-send" id="sendBtn">
+    <span data-i18n="request.send">Enviar</span> <kbd>⌘↵</kbd>
+  </button>
+  <span class="dirty-indicator" id="dirtyIndicator" hidden
+    >Unsaved changes</span
+  >
 </div>
-

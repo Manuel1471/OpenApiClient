@@ -1,69 +1,56 @@
 // main/handlers/collectionHandlers.js - Handlers IPC para colecciones
-const { ipcMain, dialog } = require('electron');
-const fs = require('fs').promises;
-const configService = require('../../src/services/configService');
+const { ipcMain, dialog } = require("electron");
+const fs = require("fs").promises;
+const configService = require("../../src/services/configService");
+const collectionService = require("../../src/services/collectionService");
 
 // Handler para crear y guardar archivo de colecciones
-ipcMain.handle('create-collection', async (event, collections) => {
+ipcMain.handle("create-collection", async (event, collections) => {
   try {
     // Mostrar diálogo para guardar archivo
     const result = await dialog.showSaveDialog({
-      title: 'Guardar Colección',
-      defaultPath: 'mi-coleccion.json',
+      title: "Guardar Colección",
+      defaultPath: "mi-coleccion.json",
       filters: [
-        { name: 'JSON', extensions: ['json'] },
-        { name: 'Todos los archivos', extensions: ['*'] }
+        { name: "JSON", extensions: ["json"] },
+        { name: "Todos los archivos", extensions: ["*"] },
       ],
-      buttonLabel: 'Guardar'
+      buttonLabel: "Guardar",
     });
-    
+
     if (result.canceled || !result.filePath) {
-      return { success: false, message: 'Operación cancelada' };
+      return { success: false, message: "Operación cancelada" };
     }
-    
+
     // Asegurar que el archivo tenga extensión .json
     let filePath = result.filePath;
-    if (!filePath.endsWith('.json')) {
-      filePath += '.json';
+    if (!filePath.endsWith(".json")) {
+      filePath += ".json";
     }
-    
+
     // Crear estructura de colección si no viene completa
-    const collectionData = {
-      info: {
-        name: collections.name || 'Mi Colección',
-        description: collections.description || '',
-        version: collections.version || '1.0.0',
-        createdAt: new Date().toISOString()
-      },
-      collections: collections.collections || [],
-      requests: collections.requests || []
-    };
-    
-    // Convertir a JSON con formato legible
-    const jsonContent = JSON.stringify(collectionData, null, 2);
-    
-    // Escribir el archivo
-    await fs.writeFile(filePath, jsonContent, 'utf-8');
-    
-    return { 
-      success: true, 
-      message: 'Colección guardada exitosamente',
-      path: filePath 
+    const collectionData = collectionService.createCollectionData(collections);
+    await collectionService.saveCollection(filePath, collectionData);
+
+    return {
+      success: true,
+      message: "Colección guardada exitosamente",
+      path: filePath,
     };
   } catch (error) {
-    console.error('Error al guardar colección:', error);
-    return { 
-      success: false, 
+    console.error("Error al guardar colección:", error);
+    return {
+      success: false,
       error: error.message,
-      message: `Error al guardar: ${error.message}`
+      message: `Error al guardar: ${error.message}`,
     };
   }
 });
 
 // Handler para agregar nueva request a una colección
-ipcMain.handle('add-new-http-request-to-collection', async (event, request) => {
+ipcMain.handle("add-new-http-request-to-collection", async (event, request) => {
   try {
-    const collection = await fs.readFile(request.collectionPath, 'utf-8');
+    const collection = await fs.readFile(request.collectionPath, "utf-8");
     return { success: true, collection };
   } catch (error) {
     return { success: false, error: error.message };
@@ -71,9 +58,9 @@ ipcMain.handle('add-new-http-request-to-collection', async (event, request) => {
 });
 
 // Handler para cargar colección desde archivo
-ipcMain.handle('load-collection', async (event, filePath) => {
+ipcMain.handle("load-collection", async (event, filePath) => {
   try {
-    const content = await fs.readFile(filePath, 'utf-8');
+    const content = await fs.readFile(filePath, "utf-8");
     const collection = JSON.parse(content);
     return { success: true, collection, path: filePath };
   } catch (error) {
@@ -82,10 +69,60 @@ ipcMain.handle('load-collection', async (event, filePath) => {
 });
 
 // Handler para actualizar colección
-ipcMain.handle('update-collection', async (event, filePath, collectionData) => {
+ipcMain.handle("update-collection", async (event, filePath, collectionData) => {
   try {
-    const jsonContent = JSON.stringify(collectionData, null, 2);
-    await fs.writeFile(filePath, jsonContent, 'utf-8');
+    await collectionService.saveCollection(filePath, collectionData);
+    return { success: true, path: filePath };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle("rename-collection", async (event, filePath, name) => {
+  try {
+    const collection = await collectionService.loadCollection(filePath);
+    collection.info ||= {};
+    collection.info.name = name;
+    await collectionService.saveCollection(filePath, collection);
+    const config = await configService.load();
+    const item = config.collections.find((entry) => entry.path === filePath);
+    if (item) item.name = name;
+    await configService.save(config);
+    return { success: true, collection };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle("remove-collection", async (event, filePath) => {
+  try {
+    const config = await configService.load();
+    config.collections = config.collections.filter(
+      (entry) => entry.path !== filePath,
+    );
+    await configService.save(config);
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle("export-collection", async (event, collection) => {
+  try {
+    const result = await dialog.showSaveDialog({
+      title: "Exportar colección",
+      defaultPath: `${collection.info?.name || "coleccion"}.json`,
+      filters: [{ name: "JSON", extensions: ["json"] }],
+    });
+    if (result.canceled || !result.filePath)
+      return { success: false, canceled: true };
+    const filePath = result.filePath.endsWith(".json")
+      ? result.filePath
+      : `${result.filePath}.json`;
+    await collectionService.saveCollection(
+      filePath,
+      collectionService.sanitizeForExport(collection),
+    );
     return { success: true, path: filePath };
   } catch (error) {
     return { success: false, error: error.message };
@@ -93,62 +130,76 @@ ipcMain.handle('update-collection', async (event, filePath, collectionData) => {
 });
 
 // Handler para importar colección y guardar el path en la configuración
-ipcMain.handle('import-collection', async (event, filePath) => {
+ipcMain.handle("import-collection", async (event, filePath) => {
   try {
     // Leer el archivo de colección
-    const content = await fs.readFile(filePath, 'utf-8');
-    const collection = JSON.parse(content);
-    
+    const content = await fs.readFile(filePath, "utf-8");
+    let collection;
+    try {
+      collection = JSON.parse(content);
+    } catch {
+      collection = collectionService.importOpenApi(content);
+    }
+
     // Cargar configuración actual
     const config = await configService.load();
-    
+
     // Verificar si el path ya existe en las colecciones
-    const existingIndex = config.collections.findIndex(c => c.path === filePath);
-    
+    const existingIndex = config.collections.findIndex(
+      (c) => c.path === filePath,
+    );
+
     if (existingIndex === -1) {
       // Agregar nueva colección al config
       config.collections.push({
         path: filePath,
-        name: collection.info?.name || collection.name || 'Colección sin nombre',
-        lastLoaded: new Date().toISOString()
+        name:
+          collection.info?.name || collection.name || "Colección sin nombre",
+        lastLoaded: new Date().toISOString(),
       });
-      
+
       // Guardar configuración actualizada
       await configService.save(config);
     }
-    
+
     return { success: true, collection, path: filePath };
   } catch (error) {
-    console.error('Error al importar colección:', error);
+    console.error("Error al importar colección:", error);
     return { success: false, error: error.message };
   }
 });
 
 // Handler para cargar todas las colecciones desde los paths guardados
-ipcMain.handle('load-all-collections', async () => {
+ipcMain.handle("load-all-collections", async () => {
   try {
     const config = await configService.load();
     const collections = [];
-    
+
     // Cargar cada colección desde su path
     for (const collectionInfo of config.collections || []) {
       try {
-        const content = await fs.readFile(collectionInfo.path, 'utf-8');
+        const content = await fs.readFile(collectionInfo.path, "utf-8");
         const collection = JSON.parse(content);
         collections.push({
           ...collection,
           path: collectionInfo.path,
-          name: collectionInfo.name || collection.info?.name || 'Colección sin nombre'
+          name:
+            collectionInfo.name ||
+            collection.info?.name ||
+            "Colección sin nombre",
         });
       } catch (error) {
-        console.warn(`No se pudo cargar colección en ${collectionInfo.path}:`, error.message);
+        console.warn(
+          `No se pudo cargar colección en ${collectionInfo.path}:`,
+          error.message,
+        );
         // Continuar con las demás colecciones aunque una falle
       }
     }
-    
+
     return { success: true, collections };
   } catch (error) {
-    console.error('Error al cargar colecciones:', error);
+    console.error("Error al cargar colecciones:", error);
     return { success: false, error: error.message, collections: [] };
   }
 });
@@ -156,4 +207,3 @@ ipcMain.handle('load-all-collections', async () => {
 // Los handlers se registran automáticamente con ipcMain.handle
 // No necesitamos exportar nada, pero mantenemos el export para compatibilidad
 module.exports = {};
-

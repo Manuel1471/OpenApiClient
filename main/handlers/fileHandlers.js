@@ -1,29 +1,35 @@
 // main/handlers/fileHandlers.js - Handlers IPC para operaciones de archivos
-const { ipcMain, dialog } = require('electron');
-const fs = require('fs').promises;
+const { ipcMain, dialog } = require("electron");
+const fs = require("fs").promises;
 
 // Handler para seleccionar archivo
-ipcMain.handle('select-file', async () => {
+ipcMain.handle("select-file", async () => {
   const result = await dialog.showOpenDialog({
-    properties: ['openFile'],
+    properties: ["openFile"],
     filters: [
-      { name: 'JSON', extensions: ['json'] },
-      { name: 'YAML', extensions: ['yaml', 'yml'] },
-      { name: 'OpenAPI', extensions: ['json', 'yaml', 'yml'] },
-      { name: 'Todos los archivos', extensions: ['*'] }
-    ]
+      { name: "JSON", extensions: ["json"] },
+      { name: "YAML", extensions: ["yaml", "yml"] },
+      { name: "OpenAPI", extensions: ["json", "yaml", "yml"] },
+      { name: "Todos los archivos", extensions: ["*"] },
+    ],
   });
-  
+
   if (!result.canceled && result.filePaths.length > 0) {
     return result.filePaths[0];
   }
   return null;
 });
 
+// Returns a file path only; the main process reads it later for multipart uploads.
+ipcMain.handle("select-upload-file", async () => {
+  const result = await dialog.showOpenDialog({ properties: ["openFile"] });
+  return result.canceled ? null : result.filePaths[0];
+});
+
 // Handler para leer el contenido de un archivo
-ipcMain.handle('read-file', async (event, filePath) => {
+ipcMain.handle("read-file", async (event, filePath) => {
   try {
-    const content = await fs.readFile(filePath, 'utf-8');
+    const content = await fs.readFile(filePath, "utf-8");
     return { success: true, content, path: filePath };
   } catch (error) {
     return { success: false, error: error.message };
@@ -31,9 +37,9 @@ ipcMain.handle('read-file', async (event, filePath) => {
 });
 
 // Handler para escribir un archivo
-ipcMain.handle('write-file', async (event, filePath, content) => {
+ipcMain.handle("write-file", async (event, filePath, content) => {
   try {
-    await fs.writeFile(filePath, content, 'utf-8');
+    await fs.writeFile(filePath, content, "utf-8");
     return { success: true, path: filePath };
   } catch (error) {
     return { success: false, error: error.message };
@@ -41,11 +47,11 @@ ipcMain.handle('write-file', async (event, filePath, content) => {
 });
 
 // Handler para seleccionar directorio
-ipcMain.handle('select-directory', async () => {
+ipcMain.handle("select-directory", async () => {
   const result = await dialog.showOpenDialog({
-    properties: ['openDirectory']
+    properties: ["openDirectory"],
   });
-  
+
   if (!result.canceled && result.filePaths.length > 0) {
     return result.filePaths[0];
   }
@@ -53,4 +59,3 @@ ipcMain.handle('select-directory', async () => {
 });
 
 module.exports = {};
-

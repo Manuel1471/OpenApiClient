@@ -1,17 +1,16 @@
 <!-- KeyValueEditor Component -->
 <div class="key-value-editor">
-    <div class="kv-header">
-        <span>Key</span>
-        <span>Value</span>
-        <span></span>
+  <div class="kv-header">
+    <span>Key</span>
+    <span>Value</span>
+    <span></span>
+  </div>
+  <div class="kv-rows" id="kvRows">
+    <div class="kv-row">
+      <input type="text" class="kv-key" placeholder="nombre" />
+      <input type="text" class="kv-value" placeholder="valor" />
+      <button class="btn-remove">×</button>
     </div>
-    <div class="kv-rows" id="kvRows">
-        <div class="kv-row">
-            <input type="text" class="kv-key" placeholder="nombre">
-            <input type="text" class="kv-value" placeholder="valor">
-            <button class="btn-remove">×</button>
-        </div>
-    </div>
-    <button class="btn-add-row" id="addRowBtn">+ Agregar</button>
+  </div>
+  <button class="btn-add-row" id="addRowBtn">+ Agregar</button>
 </div>
-

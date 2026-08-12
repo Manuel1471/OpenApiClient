@@ -1,89 +1,180 @@
 <!-- TabContent Component -->
 <div class="tab-content">
-    <!-- Tab Params -->
-    <div class="tab-panel active" id="paramsPanel">
-        <div class="key-value-editor">
-            <div class="kv-header">
-                <span>Key</span>
-                <span>Value</span>
-                <span></span>
-            </div>
-            <div class="kv-rows" id="paramsRows">
-                <div class="kv-row">
-                    <input type="text" class="kv-key" placeholder="nombre">
-                    <input type="text" class="kv-value" placeholder="valor">
-                    <button class="btn-remove">×</button>
-                </div>
-            </div>
-            <button class="btn-add-row" id="addParamBtn">+ Agregar</button>
+  <!-- Tab Params -->
+  <div class="tab-panel active" id="paramsPanel">
+    <div class="key-value-editor">
+      <div class="kv-header">
+        <span>Key</span>
+        <span>Value</span>
+        <span></span>
+      </div>
+      <div class="kv-rows" id="paramsRows">
+        <div class="kv-row">
+          <input type="text" class="kv-key" placeholder="nombre" />
+          <input type="text" class="kv-value" placeholder="valor" />
+          <button class="btn-remove">×</button>
         </div>
+      </div>
+      <button class="btn-add-row" id="addParamBtn">+ Agregar</button>
     </div>
+  </div>
 
-    <!-- Tab Headers -->
-    <div class="tab-panel" id="headersPanel">
-        <div class="key-value-editor">
-            <div class="kv-header">
-                <span>Key</span>
-                <span>Value</span>
-                <span></span>
-            </div>
-            <div class="kv-rows" id="headersRows">
-                <div class="kv-row">
-                    <input type="text" class="kv-key" placeholder="Content-Type" value="application/json">
-                    <input type="text" class="kv-value" placeholder="application/json" value="application/json">
-                    <button class="btn-remove">×</button>
-                </div>
-            </div>
-            <button class="btn-add-row" id="addHeaderBtn">+ Agregar</button>
+  <!-- Tab Headers -->
+  <div class="tab-panel" id="headersPanel">
+    <div class="key-value-editor">
+      <div class="kv-header">
+        <span>Key</span>
+        <span>Value</span>
+        <span></span>
+      </div>
+      <div class="kv-rows" id="headersRows">
+        <div class="kv-row">
+          <input
+            type="text"
+            class="kv-key"
+            placeholder="Content-Type"
+            value="application/json"
+          />
+          <input
+            type="text"
+            class="kv-value"
+            placeholder="application/json"
+            value="application/json"
+          />
+          <button class="btn-remove">×</button>
         </div>
+      </div>
+      <button class="btn-add-row" id="addHeaderBtn">+ Agregar</button>
     </div>
+  </div>
 
-    <!-- Tab Body -->
-    <div class="tab-panel" id="bodyPanel">
-        <div class="body-options">
-            <label class="radio-option">
-                <input type="radio" name="bodyType" value="none" checked>
-                <span>None</span>
-            </label>
-            <label class="radio-option">
-                <input type="radio" name="bodyType" value="raw">
-                <span>raw</span>
-            </label>
-            <label class="radio-option">
-                <input type="radio" name="bodyType" value="form-data">
-                <span>form-data</span>
-            </label>
-            <label class="radio-option">
-                <input type="radio" name="bodyType" value="x-www-form-urlencoded">
-                <span>x-www-form-urlencoded</span>
-            </label>
-        </div>
-        <div class="body-editor-container">
-            <select class="body-format-select" id="bodyFormatSelect">
-                <option value="json">JSON</option>
-                <option value="text">Text</option>
-                <option value="xml">XML</option>
-            </select>
-            <textarea class="body-editor" id="bodyEditor" placeholder='{\n  "key": "value"\n}'></textarea>
-        </div>
+  <!-- Tab Body -->
+  <div class="tab-panel" id="bodyPanel">
+    <div class="body-options">
+      <label class="radio-option">
+        <input type="radio" name="bodyType" value="none" checked />
+        <span>None</span>
+      </label>
+      <label class="radio-option">
+        <input type="radio" name="bodyType" value="raw" />
+        <span>raw</span>
+      </label>
+      <label class="radio-option">
+        <input type="radio" name="bodyType" value="form-data" />
+        <span>form-data</span>
+      </label>
+      <label class="radio-option">
+        <input type="radio" name="bodyType" value="x-www-form-urlencoded" />
+        <span>x-www-form-urlencoded</span>
+      </label>
     </div>
+    <div class="body-editor-container">
+      <div class="editor-toolbar">
+        <select class="body-format-select" id="bodyFormatSelect">
+          <option value="json">JSON</option>
+          <option value="text">Text</option>
+          <option value="xml">XML</option>
+        </select>
+        <button class="editor-action" id="formatJsonBtn" type="button">
+          Formatear
+        </button>
+        <button class="editor-action" id="minifyJsonBtn" type="button">
+          Minificar
+        </button>
+      </div>
+      <textarea
+        class="body-editor"
+        id="bodyEditor"
+        placeholder='{\n  "key": "value"\n}'
+      ></textarea>
+      <div class="key-value-editor form-data-editor" id="formDataEditor" hidden>
+        <div class="kv-header">
+          <span>Key</span><span>Value</span><span></span>
+        </div>
+        <div class="kv-rows" id="formDataRows">
+          <div class="kv-row">
+            <input class="kv-key" placeholder="nombre" /><input
+              class="kv-value"
+              placeholder="valor"
+            /><button class="btn-remove" type="button">×</button>
+          </div>
+        </div>
+        <button class="btn-add-row" id="addFormDataBtn" type="button">
+          + Agregar campo
+        </button>
+      </div>
+    </div>
+  </div>
 
-    <!-- Tab Auth -->
-    <div class="tab-panel" id="authPanel">
-        <div class="auth-selector">
-            <select class="auth-type-select" id="authTypeSelect">
-                <option value="none">No Auth</option>
-                <option value="bearer">Bearer Token</option>
-                <option value="basic">Basic Auth</option>
-                <option value="apikey">API Key</option>
-            </select>
-        </div>
-        <div class="auth-fields" id="authFields">
-            <div class="auth-field">
-                <label>Token</label>
-                <input type="text" class="auth-input" id="bearerToken" placeholder="Ingresa tu token">
-            </div>
-        </div>
+  <!-- Tab Auth -->
+  <div class="tab-panel" id="authPanel">
+    <div class="auth-selector">
+      <select class="auth-type-select" id="authTypeSelect">
+        <option value="none">No Auth</option>
+        <option value="bearer">Bearer Token</option>
+        <option value="basic">Basic Auth</option>
+        <option value="apikey">API Key</option>
+      </select>
     </div>
+    <div class="auth-fields" id="authFields">
+      <div class="auth-field">
+        <label>Token</label>
+        <input
+          type="text"
+          class="auth-input"
+          id="bearerToken"
+          placeholder="Ingresa tu token"
+        />
+      </div>
+    </div>
+  </div>
+  <div class="tab-panel" id="testingPanel">
+    <section class="testing-panel">
+      <h3>Endpoint testing</h3>
+      <p>
+        Run controlled bursts only against APIs you own or are authorized to
+        test.
+      </p>
+      <div class="testing-controls">
+        <label
+          >Requests<input
+            id="testRequestCount"
+            type="number"
+            min="1"
+            max="50"
+            value="5" /></label
+        ><label
+          >Concurrency<input
+            id="testConcurrency"
+            type="number"
+            min="1"
+            max="10"
+            value="1" /></label
+        ><button class="btn-send" id="runLimitTestBtn" type="button">
+          <span>Run test</span>
+        </button>
+      </div>
+      <pre class="testing-results" id="limitTestResults">No test has run.</pre>
+      <div class="testing-controls assertions">
+        <label
+          >Expected status<input
+            id="assertStatus"
+            type="number"
+            placeholder="200" /></label
+        ><label
+          >Required header<input
+            id="assertHeader"
+            placeholder="content-type" /></label
+        ><label
+          >JSON path<input id="assertJsonPath" placeholder="data.id" /></label
+        ><button
+          class="editor-action"
+          id="saveResponseVariableBtn"
+          type="button"
+        >
+          Save response value
+        </button>
+      </div>
+    </section>
+  </div>
 </div>
-

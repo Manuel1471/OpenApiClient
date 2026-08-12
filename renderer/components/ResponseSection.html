@@ -1,23 +1,78 @@
 <!-- ResponseSection Component -->
 <div class="response-section">
-    <div class="response-header">
-        <span class="response-status" id="responseStatus">Esperando...</span>
-        <div class="response-actions">
-            <button class="btn-text-small" id="copyResponseBtn">Copiar</button>
-            <button class="btn-text-small" id="clearResponseBtn">Limpiar</button>
-        </div>
+  <div class="response-header">
+    <span
+      class="response-status"
+      id="responseStatus"
+      data-i18n="response.waiting"
+      >Esperando…</span
+    >
+    <span class="response-meta" id="responseMeta" data-i18n="response.offline"
+      >Sin conexión</span
+    >
+    <div class="response-actions">
+      <button
+        class="btn-text-small"
+        id="copyResponseBtn"
+        data-i18n="response.copy"
+      >
+        Copiar
+      </button>
+      <button
+        class="btn-text-small"
+        id="clearResponseBtn"
+        data-i18n="response.clear"
+      >
+        Limpiar
+      </button>
+      <button class="btn-text-small" id="cancelRequestBtn" disabled>
+        Cancelar
+      </button>
+      <button class="btn-text-small" id="compareResponseBtn">Compare</button>
+      <button class="btn-text-small" id="exportHistoryBtn">
+        Export history
+      </button>
+      <button
+        class="btn-text-small"
+        id="fullscreenResponseBtn"
+        aria-label="Toggle response fullscreen"
+      >
+        ⛶
+      </button>
     </div>
-    <div class="response-tabs">
-        <button class="response-tab active" data-response-tab="body">Body</button>
-        <button class="response-tab" data-response-tab="headers">Headers</button>
+  </div>
+  <div class="response-tabs">
+    <button
+      class="response-tab active"
+      data-response-tab="body"
+      data-i18n="tabs.body"
+    >
+      Body
+    </button>
+    <button
+      class="response-tab"
+      data-response-tab="headers"
+      data-i18n="tabs.headers"
+    >
+      Headers
+    </button>
+    <button class="response-tab" data-response-tab="diff">Diff</button>
+  </div>
+  <div class="response-content">
+    <div class="response-panel active" id="responseBodyPanel">
+      <pre class="response-body" id="responseBody">
+La respuesta aparecerá aquí...</pre
+      >
     </div>
-    <div class="response-content">
-        <div class="response-panel active" id="responseBodyPanel">
-            <pre class="response-body" id="responseBody">La respuesta aparecerá aquí...</pre>
-        </div>
-        <div class="response-panel" id="responseHeadersPanel">
-            <pre class="response-headers" id="responseHeaders">Los headers aparecerán aquí...</pre>
-        </div>
+    <div class="response-panel" id="responseHeadersPanel">
+      <pre class="response-headers" id="responseHeaders">
+Los headers aparecerán aquí...</pre
+      >
     </div>
+    <div class="response-panel" id="responseDiffPanel">
+      <pre class="response-body" id="responseDiff">
+Run two requests to compare them.</pre
+      >
+    </div>
+  </div>
 </div>
-

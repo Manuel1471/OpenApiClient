@@ -1,34 +1,81 @@
 <!-- Sidebar Component -->
 <aside class="sidebar">
-    <div class="sidebar-header">
-        <h2>Colecciones</h2>
-        <div class="collections-menu-container">
-            <button class="menu-trigger" id="collectionsMenuTrigger" title="Opciones de colecciones">⋯</button>
-            <div class="collections-menu" id="collectionsMenu">
-                <button class="menu-item" id="importFileBtn">
-                    <span>Importar</span>
-                </button>
-                <button class="menu-item" id="newRequestBtn">
-                    <span>Nueva Request</span>
-                </button>
-                <button class="menu-item" id="saveRequestBtn">
-                    <span>Guardar</span>
-                </button>
-                <button class="menu-item" id="newCollectionBtn">
-                    <span>Nueva Colección</span>
-                </button>
-            </div>
-        </div>
+  <div class="sidebar-header">
+    <h2>
+      <span>//</span> <span data-i18n="sidebar.collections">Colecciones</span>
+    </h2>
+    <div class="collections-menu-container">
+      <button
+        class="menu-trigger"
+        id="collectionsMenuTrigger"
+        title="Opciones de colecciones"
+      >
+        +
+      </button>
+      <div class="collections-menu" id="collectionsMenu">
+        <p class="menu-label" data-i18n="sidebar.createGroup">Crear</p>
+        <button class="menu-item menu-item-primary" id="newCollectionBtn">
+          <span class="menu-icon">+</span
+          ><span data-i18n="sidebar.newCollection">Nueva colección</span>
+        </button>
+        <button class="menu-item" id="newRequestBtn">
+          <span class="menu-icon">›</span
+          ><span data-i18n="sidebar.newRequest">Nueva request</span>
+        </button>
+        <div class="menu-divider"></div>
+        <p class="menu-label" data-i18n="sidebar.fileGroup">Archivo</p>
+        <button class="menu-item" id="importFileBtn">
+          <span class="menu-icon">↓</span
+          ><span data-i18n="sidebar.import">Importar</span>
+        </button>
+        <div class="menu-divider"></div>
+        <p class="menu-label" data-i18n="sidebar.currentRequest">
+          Request actual
+        </p>
+        <button class="menu-item" id="saveRequestBtn">
+          <span class="menu-icon">⌘</span
+          ><span data-i18n="sidebar.save">Guardar</span><kbd>⌘S</kbd>
+        </button>
+        <button class="menu-item" id="saveRequestAsBtn">
+          <span class="menu-icon">⧉</span
+          ><span data-i18n="sidebar.saveAs">Guardar como nueva</span>
+        </button>
+      </div>
     </div>
-    <div class="collections-list" id="collectionsList">
-        <!-- Las colecciones se cargarán dinámicamente -->
-        <div class="empty-collections" id="emptyCollections">
-            <div class="empty-state">
-                <div class="empty-icon">📁</div>
-                <p class="empty-text">No hay colecciones</p>
-                <p class="empty-hint">Usa el menú para crear o importar una colección</p>
-            </div>
-        </div>
+  </div>
+  <div class="collection-search">
+    <span aria-hidden="true">⌕</span>
+    <input
+      id="collectionSearchInput"
+      type="search"
+      placeholder="Search collections and requests"
+      aria-label="Search collections and requests"
+    />
+  </div>
+  <div class="collections-list" id="collectionsList">
+    <!-- Las colecciones se cargarán dinámicamente -->
+    <div class="empty-collections" id="emptyCollections">
+      <div class="empty-state">
+        <p class="empty-text" data-i18n="sidebar.empty">No hay colecciones</p>
+        <p class="empty-hint">
+          <span data-i18n="sidebar.emptyHint"
+            >Usa el menú para crear o importar una colección</span
+          >
+        </p>
+        <button class="empty-action" id="emptyCreateCollectionBtn">
+          <span data-i18n="sidebar.create">+ Crear colección</span>
+        </button>
+      </div>
     </div>
+  </div>
+  <div class="history-panel">
+    <div class="history-header">
+      <span>//</span> <span data-i18n="sidebar.history">Historial</span>
+    </div>
+    <div class="history-list" id="historyList">
+      <p class="history-empty" data-i18n="history.empty">
+        Aún no hay peticiones.
+      </p>
+    </div>
+  </div>
 </aside>
-

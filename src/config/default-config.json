@@ -2,5 +2,30 @@
   "user": {
     "name": "Usuario"
   },
-  "collections": []
+  "authentication": {
+    "enabled": false,
+    "provider": null,
+    "session": null
+  },
+  "collections": [],
+  "environments": [
+    {
+      "id": "local",
+      "name": "Local",
+      "variables": { "baseUrl": "http://localhost:3000", "token": "" }
+    },
+    {
+      "id": "staging",
+      "name": "Staging",
+      "variables": { "baseUrl": "", "token": "" }
+    },
+    {
+      "id": "production",
+      "name": "Producción",
+      "variables": { "baseUrl": "", "token": "" }
+    }
+  ],
+  "activeEnvironmentId": "local",
+  "history": [],
+  "language": "es"
 }
