@@ -17,6 +17,7 @@ All notable changes to OpenAPI Client are documented in this file.
 - Response Timeline with request, response, and network filters; resolved request details; response metadata; and bounded in-memory history.
 - Collection Runner from the collection action menu, including sequential execution, delay controls, status/header assertion results, localized summary, and Markdown test report export.
 - `npm run run:collection` CLI command for collection execution in CI/CD, environment-variable interpolation, selectable output language, and non-zero exit status on failures.
+- Explicit release build commands for macOS Intel, macOS Apple Silicon, Windows x64, and Linux x64, plus `npm run dist:release` to build all artifacts with platform/architecture-specific filenames.
 - Multiple form-data file attachments, individual MIME type fields, and native file selection.
 - Global and environment variable editors with masked values and visibility controls.
 - Response preview limits, Timeline body limits, and large-payload diff protection to keep the interface responsive.

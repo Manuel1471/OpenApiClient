@@ -151,6 +151,28 @@ test/                 Unit and Electron smoke tests
 | `npm run dist:mac` | Build a macOS DMG |
 | `npm run dist:win` | Build a Windows NSIS installer |
 | `npm run dist:linux` | Build a Linux AppImage |
+| `npm run dist:mac:x64` | Build a macOS Intel DMG |
+| `npm run dist:mac:arm64` | Build a macOS Apple Silicon DMG |
+| `npm run dist:win:x64` | Build a Windows x64 NSIS installer |
+| `npm run dist:linux:x64` | Build a Linux x64 AppImage |
+| `npm run dist:release` | Build all four distributable artifacts sequentially |
+
+### Release artifacts
+
+Run the following command to produce the complete v1.1.0 release set:
+
+```bash
+npm run dist:release
+```
+
+Artifacts are created in `dist/` with platform and architecture in the filename, for example:
+
+```text
+OpenAPI-Client-1.1.0-mac-x64.dmg
+OpenAPI-Client-1.1.0-mac-arm64.dmg
+OpenAPI-Client-1.1.0-win-x64.exe
+OpenAPI-Client-1.1.0-linux-x64.AppImage
+```
 
 ## Release notes
 

@@ -18,7 +18,12 @@
     "dist": "electron-builder",
     "dist:mac": "electron-builder --mac dmg",
     "dist:win": "electron-builder --win nsis",
-    "dist:linux": "electron-builder --linux AppImage"
+    "dist:linux": "electron-builder --linux AppImage",
+    "dist:mac:x64": "electron-builder --mac dmg --x64",
+    "dist:mac:arm64": "electron-builder --mac dmg --arm64",
+    "dist:win:x64": "electron-builder --win nsis --x64",
+    "dist:linux:x64": "electron-builder --linux AppImage --x64",
+    "dist:release": "npm run dist:mac:x64 && npm run dist:mac:arm64 && npm run dist:win:x64 && npm run dist:linux:x64"
   },
   "devDependencies": {
     "electron": "^39.2.4",
@@ -35,6 +40,7 @@
   "build": {
     "appId": "com.manuelgarcia.openapi-client",
     "productName": "OpenAPI Client",
+    "artifactName": "OpenAPI-Client-${version}-${os}-${arch}.${ext}",
     "mac": {
       "target": "dmg",
       "icon": "build/icon.icns"
