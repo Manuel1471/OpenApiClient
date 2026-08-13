@@ -2,6 +2,40 @@
 
 All notable changes to OpenAPI Client are documented in this file.
 
+## [1.1.0] - 2026-08-12
+
+### Added
+
+- Protocol workspace for GraphQL, WebSocket, SOAP, and unary gRPC requests.
+- GraphQL query/mutation editor with JSON variables and HTTP POST execution.
+- WebSocket connection lifecycle, send/receive support, and in-app message log.
+- SOAP XML envelope editor and gRPC unary calls from `.proto` files using service, method, and JSON payload fields.
+- Dedicated Git settings tab with repository selection, current branch, status, recent history, initialize, commit, fetch, pull (`--ff-only`), and push actions.
+- Collection documentation export for collections and folders, with overview, contents, endpoint detail, parameters, headers, form-data, request bodies, authentication type, and assertions.
+- Localized documentation exports that follow the selected application language.
+- Sensitive-value redaction in portable exports, generated documentation, and Timeline entries.
+- Response Timeline with request, response, and network filters; resolved request details; response metadata; and bounded in-memory history.
+- Collection Runner from the collection action menu, including sequential execution, delay controls, status/header assertion results, localized summary, and Markdown test report export.
+- `npm run run:collection` CLI command for collection execution in CI/CD, environment-variable interpolation, selectable output language, and non-zero exit status on failures.
+- Multiple form-data file attachments, individual MIME type fields, and native file selection.
+- Global and environment variable editors with masked values and visibility controls.
+- Response preview limits, Timeline body limits, and large-payload diff protection to keep the interface responsive.
+- Parallel loading of saved collections, debounced collection search, and UI yielding during collection runs.
+- Full request-area scrolling for long Testing, Timeline, and response content in non-maximized windows.
+- Expanded localized interface coverage across protocol controls, testing, Timeline, Git, variables, tooltips, accessibility labels, and dynamic feedback.
+
+### Changed
+
+- README rewritten as an English product, development, protocol, security, Git, testing, CI/CD, and distribution guide.
+- Generated documentation is now structured as an API reference and uses the active application language instead of a fixed language.
+- The response renderer preserves complete data for copy actions while limiting expensive rendering work for large payloads.
+
+### Fixed
+
+- Prevented long request-tab content from being hidden below the response panel.
+- Preserved network error categories in Timeline and user feedback.
+- Corrected mixed-language labels in recently added protocol, settings, testing, and response controls.
+
 ## [1.0.0] - 2026-08-12
 
 ### Added

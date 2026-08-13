@@ -20,6 +20,14 @@ ipcMain.handle("select-file", async () => {
   return null;
 });
 
+ipcMain.handle("select-proto-file", async () => {
+  const result = await dialog.showOpenDialog({
+    properties: ["openFile"],
+    filters: [{ name: "Protocol Buffers", extensions: ["proto"] }],
+  });
+  return result.canceled ? null : result.filePaths[0];
+});
+
 // Returns paths only; the main process reads them later for multipart uploads.
 ipcMain.handle("select-upload-file", async () => {
   const result = await dialog.showOpenDialog({ properties: ["openFile", "multiSelections"] });

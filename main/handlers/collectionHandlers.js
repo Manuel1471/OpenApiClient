@@ -173,29 +173,26 @@ ipcMain.handle("import-collection", async (event, filePath) => {
 ipcMain.handle("load-all-collections", async () => {
   try {
     const config = await configService.load();
-    const collections = [];
-
-    // Cargar cada colección desde su path
-    for (const collectionInfo of config.collections || []) {
+    const loaded = await Promise.all((config.collections || []).map(async (collectionInfo) => {
       try {
-        const content = await fs.readFile(collectionInfo.path, "utf-8");
-        const collection = JSON.parse(content);
-        collections.push({
+        const collection = JSON.parse(await fs.readFile(collectionInfo.path, "utf-8"));
+        return {
           ...collection,
           path: collectionInfo.path,
           name:
             collectionInfo.name ||
             collection.info?.name ||
             "Colección sin nombre",
-        });
+        };
       } catch (error) {
         console.warn(
           `No se pudo cargar colección en ${collectionInfo.path}:`,
           error.message,
         );
-        // Continuar con las demás colecciones aunque una falle
+        return null;
       }
-    }
+    }));
+    const collections = loaded.filter(Boolean);
 
     return { success: true, collections };
   } catch (error) {

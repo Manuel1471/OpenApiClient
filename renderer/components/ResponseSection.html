@@ -42,7 +42,7 @@
       </button>
     </div>
   </div>
-  <div class="response-resize-handle" role="separator" aria-orientation="horizontal" aria-label="Resize response panel" aria-valuemin="230" aria-valuemax="1200" aria-valuenow="230" tabindex="0" title="Resize response panel"></div>
+  <div class="response-resize-handle" role="separator" aria-orientation="horizontal" data-i18n-aria-label="response.resize" aria-label="Redimensionar panel de respuesta" aria-valuemin="230" aria-valuemax="1200" aria-valuenow="230" tabindex="0" data-i18n-title="response.resize" title="Redimensionar panel de respuesta"></div>
   <div class="response-tabs">
     <button
       class="response-tab active"
@@ -59,6 +59,7 @@
       Headers
     </button>
     <button class="response-tab" data-response-tab="diff" data-i18n="response.diff">Diferencias</button>
+    <button class="response-tab" data-response-tab="timeline" data-i18n="timeline.title">Timeline</button>
   </div>
   <div class="response-content">
     <div class="response-panel active" id="responseBodyPanel">
@@ -75,6 +76,16 @@ Los headers aparecerán aquí…</pre
       <pre class="response-body" id="responseDiff" data-i18n="response.diffEmpty">
 Ejecuta dos requests para compararlas.</pre
       >
+    </div>
+    <div class="response-panel" id="responseTimelinePanel">
+      <div class="timeline-toolbar" role="tablist" data-i18n-aria-label="timeline.filters" aria-label="Filtros de timeline">
+        <button class="timeline-filter active" type="button" data-timeline-filter="all" data-i18n="timeline.all">Todo</button>
+        <button class="timeline-filter" type="button" data-timeline-filter="request" data-i18n="timeline.request">Request</button>
+        <button class="timeline-filter" type="button" data-timeline-filter="response" data-i18n="timeline.response">Response</button>
+        <button class="timeline-filter" type="button" data-timeline-filter="network" data-i18n="timeline.network">Red</button>
+        <button class="btn-text-small" type="button" id="clearTimelineBtn" data-i18n="timeline.clear">Limpiar timeline</button>
+      </div>
+      <div id="timelineList" class="timeline-list" aria-live="polite"></div>
     </div>
   </div>
 </div>

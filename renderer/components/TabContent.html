@@ -1,21 +1,41 @@
 <!-- TabContent Component -->
 <div class="tab-content">
+  <div class="protocol-workspace" id="protocolWorkspace" hidden>
+    <section class="protocol-card graphql-only soap-only">
+      <h3 id="protocolTitle">GraphQL</h3>
+      <p id="protocolHint"></p>
+      <label><span id="protocolEditorLabel" data-i18n="protocol.operation">Operación</span><textarea id="protocolEditor" class="body-editor" placeholder="query { users { id name } }"></textarea></label>
+      <label class="graphql-only"><span data-i18n="protocol.variables">Variables JSON</span><textarea id="graphqlVariables" class="body-editor" placeholder='{"limit": 10}'></textarea></label>
+    </section>
+    <section class="protocol-card websocket-only" hidden>
+      <div class="protocol-actions"><button type="button" class="protocol-button primary" id="websocketConnectBtn" data-i18n="protocol.connect">Conectar</button><button type="button" class="protocol-button" id="websocketDisconnectBtn" data-i18n="protocol.disconnect">Desconectar</button></div>
+      <textarea id="websocketMessage" class="body-editor" placeholder='{"event":"ping"}'></textarea>
+      <button type="button" class="protocol-button primary" id="websocketSendBtn" data-i18n="protocol.sendMessage">Enviar mensaje</button>
+      <pre id="websocketLog" class="protocol-log" aria-live="polite"></pre>
+    </section>
+    <section class="protocol-card grpc-only" hidden>
+      <div class="protocol-actions"><input id="grpcProtoPath" readonly data-i18n-placeholder="protocol.protoPlaceholder" placeholder="Selecciona un archivo .proto"><button type="button" class="protocol-button" id="grpcProtoBtn" data-i18n="protocol.chooseProto">Elegir .proto</button></div>
+      <label><span data-i18n="protocol.service">Servicio</span><input id="grpcService" placeholder="example.v1.Users"></label>
+      <label><span data-i18n="protocol.method">Método unary</span><input id="grpcMethod" placeholder="GetUser"></label>
+      <label><span data-i18n="protocol.requestJson">Request JSON</span><textarea id="grpcPayload" class="body-editor" placeholder='{"id":"1"}'></textarea></label>
+    </section>
+  </div>
   <!-- Tab Params -->
   <div class="tab-panel active" id="paramsPanel">
     <div class="key-value-editor">
       <div class="kv-header">
-        <span>Key</span>
-        <span>Value</span>
+        <span data-i18n="form.key">Clave</span>
+        <span data-i18n="form.value">Valor</span>
         <span></span>
       </div>
       <div class="kv-rows" id="paramsRows">
         <div class="kv-row">
-          <input type="text" class="kv-key" placeholder="nombre" />
-          <input type="text" class="kv-value" placeholder="valor" />
+          <input type="text" class="kv-key" data-i18n-placeholder="form.key" placeholder="Clave" />
+          <input type="text" class="kv-value" data-i18n-placeholder="form.value" placeholder="Valor" />
           <button class="btn-remove">×</button>
         </div>
       </div>
-      <button class="btn-add-row" id="addParamBtn">+ Agregar</button>
+      <button class="btn-add-row" id="addParamBtn" data-i18n="form.add">+ Agregar</button>
     </div>
   </div>
 
@@ -23,8 +43,8 @@
   <div class="tab-panel" id="headersPanel">
     <div class="key-value-editor">
       <div class="kv-header">
-        <span>Key</span>
-        <span>Value</span>
+        <span data-i18n="form.key">Clave</span>
+        <span data-i18n="form.value">Valor</span>
         <span></span>
       </div>
       <div class="kv-rows" id="headersRows">
@@ -44,7 +64,7 @@
           <button class="btn-remove">×</button>
         </div>
       </div>
-      <button class="btn-add-row" id="addHeaderBtn">+ Agregar</button>
+      <button class="btn-add-row" id="addHeaderBtn" data-i18n="form.add">+ Agregar</button>
     </div>
   </div>
 
@@ -53,7 +73,7 @@
     <div class="body-options">
       <label class="radio-option">
         <input type="radio" name="bodyType" value="none" checked />
-        <span>None</span>
+        <span data-i18n="body.none">Ninguno</span>
       </label>
       <label class="radio-option">
         <input type="radio" name="bodyType" value="raw" />
@@ -72,14 +92,14 @@
       <div class="editor-toolbar">
         <select class="body-format-select" id="bodyFormatSelect">
           <option value="json">JSON</option>
-          <option value="text">Text</option>
+          <option value="text" data-i18n="body.text">Texto</option>
           <option value="xml">XML</option>
         </select>
         <button class="editor-action" id="formatJsonBtn" type="button">
-          Formatear
+          <span data-i18n="body.format">Formatear</span>
         </button>
         <button class="editor-action" id="minifyJsonBtn" type="button">
-          Minificar
+          <span data-i18n="body.minify">Minificar</span>
         </button>
       </div>
       <textarea
@@ -89,18 +109,19 @@
       ></textarea>
       <div class="key-value-editor form-data-editor" id="formDataEditor" hidden>
         <div class="kv-header">
-          <span>Key</span><span>Value / file</span><span>MIME</span><span></span>
+          <span data-i18n="form.key">Clave</span><span data-i18n="form.valueOrFile">Valor / archivo</span><span>MIME</span><span></span>
         </div>
         <div class="kv-rows" id="formDataRows">
           <div class="kv-row">
-            <input class="kv-key" placeholder="nombre" /><input
+            <input class="kv-key" data-i18n-placeholder="form.key" placeholder="Clave" /><input
               class="kv-value"
-              placeholder="valor"
-            /><input class="kv-mime" placeholder="auto" /><button class="btn-remove" type="button">×</button>
+              data-i18n-placeholder="form.value"
+              placeholder="Valor"
+            /><input class="kv-mime" data-i18n-placeholder="form.auto" placeholder="auto" /><button class="btn-remove" type="button" data-i18n-aria-label="form.remove" aria-label="Eliminar">×</button>
           </div>
         </div>
         <button class="btn-add-row" id="addFormDataBtn" type="button">
-          + Agregar campo
+          <span data-i18n="form.addField">+ Agregar campo</span>
         </button>
       </div>
     </div>
@@ -110,19 +131,20 @@
   <div class="tab-panel" id="authPanel">
     <div class="auth-selector">
       <select class="auth-type-select" id="authTypeSelect">
-        <option value="none">No Auth</option>
+        <option value="none" data-i18n="auth.none">Sin autenticación</option>
         <option value="bearer">Bearer Token</option>
-        <option value="basic">Basic Auth</option>
-        <option value="apikey">API Key</option>
+        <option value="basic" data-i18n="auth.basic">Autenticación básica</option>
+        <option value="apikey" data-i18n="auth.apiKey">Clave API</option>
       </select>
     </div>
     <div class="auth-fields" id="authFields">
       <div class="auth-field">
-        <label>Token</label>
+        <label data-i18n="auth.token">Token</label>
         <input
           type="text"
           class="auth-input"
           id="bearerToken"
+          data-i18n-placeholder="auth.tokenPlaceholder"
           placeholder="Ingresa tu token"
         />
       </div>
@@ -168,7 +190,7 @@
         ><label
           ><span data-i18n="testing.jsonPath">Ruta JSON</span><input id="assertJsonPath" placeholder="data.id" /></label
         ><label
-          ><span data-i18n="testing.operator">Operador</span><select id="assertOperator"><option value="exists">Existe</option><option value="equals">Es igual a</option><option value="contains">Contiene</option></select></label
+          ><span data-i18n="testing.operator">Operador</span><select id="assertOperator"><option value="exists" data-i18n="testing.exists">Existe</option><option value="equals" data-i18n="testing.equals">Es igual a</option><option value="contains" data-i18n="testing.contains">Contiene</option></select></label
         ><label
           ><span data-i18n="testing.expectedValue">Valor esperado</span><input id="assertExpectedValue" placeholder="123" /></label
         ><button

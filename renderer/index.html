@@ -3,13 +3,13 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>OpenAPI Client v1.0.0</title>
+    <title>OpenAPI Client v1.1.0</title>
     <link rel="stylesheet" href="assets/css/main.css" />
   </head>
   <body>
-    <div class="app-splash" id="appSplash" role="status" aria-label="Loading OpenAPI Client">
+    <div class="app-splash" id="appSplash" role="status" data-i18n-aria-label="app.loading" aria-label="Cargando OpenAPI Client">
       <img src="assets/icon.png" alt="" class="app-splash-logo" />
-      <p>OPENAPI CLIENT v1.0.0</p><span>Initializing workspace…</span>
+      <p>OPENAPI CLIENT v1.1.0</p><span data-i18n="app.initializing">Inicializando espacio de trabajo…</span>
     </div>
     <div id="app">
       <!-- TopBar Component -->
@@ -109,6 +109,13 @@
             data-i18n="settings.advanced"
           >
             Advanced
+          </button><button
+            class="settings-tab"
+            type="button"
+            data-settings-tab="git"
+            data-i18n="settings.git"
+          >
+            Git
           </button>
         </div>
         <div class="settings-panel active" data-settings-panel="profile">
@@ -130,8 +137,8 @@
           <div class="environment-settings">
             <div class="environment-settings-header">
               <span data-i18n="settings.environment">Entorno</span
-              ><button type="button" id="addEnvironmentBtn" data-i18n="settings.new">+ Nuevo</button
-              ><button type="button" id="deleteEnvironmentBtn" data-i18n="common.delete">Eliminar</button>
+              ><button type="button" class="editor-action" id="addEnvironmentBtn" data-i18n="settings.new">+ Nuevo</button
+              ><button type="button" class="editor-action danger-action" id="deleteEnvironmentBtn" data-i18n="common.delete">Eliminar</button>
             </div>
             <label
               ><span data-i18n="settings.environment">Entorno</span><select id="accountEnvironmentSelect"></select
@@ -159,7 +166,7 @@
               <span data-i18n="settings.timeoutHint">Mínimo 1000 ms · predeterminado 30000 ms</span>
             </p>
             <div class="variable-editor">
-              <div class="variable-editor-header"><span>Environment variables</span><button type="button" id="addEnvironmentVariableBtn">+ Add variable</button></div>
+              <div class="variable-editor-header"><span data-i18n="variables.environment">Variables de entorno</span><button type="button" class="editor-action" id="addEnvironmentVariableBtn" data-i18n="variables.add">+ Agregar variable</button></div>
               <div id="environmentVariablesRows"></div>
             </div>
           </div>
@@ -169,9 +176,19 @@
             <span data-i18n="settings.advancedHint">Los secretos se almacenan con el llavero del sistema cuando está disponible. El inicio de sesión permanece desactivado.</span>
           </p>
           <div class="variable-editor">
-            <div class="variable-editor-header"><span>Global variables</span><button type="button" id="addGlobalVariableBtn">+ Add variable</button></div>
+            <div class="variable-editor-header"><span data-i18n="variables.global">Variables globales</span><button type="button" class="editor-action" id="addGlobalVariableBtn" data-i18n="variables.add">+ Agregar variable</button></div>
             <div id="globalVariablesRows"></div>
           </div>
+        </div>
+        <div class="settings-panel" data-settings-panel="git">
+          <section class="git-panel" aria-labelledby="gitPanelTitle">
+            <div class="git-panel-header"><div><h3 id="gitPanelTitle" data-i18n="git.title">Git local</h3><p data-i18n="git.description">Gestiona tus colecciones con un repositorio local.</p></div><button type="button" class="editor-action" id="gitChooseRepoBtn" data-i18n="git.choose">Elegir repositorio</button></div>
+            <code id="gitRepositoryPath" class="git-path" data-i18n="git.noRepository">Sin repositorio seleccionado</code>
+            <div class="git-meta"><span id="gitBranchName" data-i18n="git.noBranch">Sin rama activa</span><span data-i18n="git.credentialsHint">Usa las credenciales configuradas en Git.</span></div>
+            <pre id="gitStatusOutput" class="git-status-output" data-i18n="git.statusEmpty">Selecciona un repositorio para ver su estado.</pre>
+            <div class="git-actions"><div class="git-toolbar"><button type="button" class="editor-action" id="gitRefreshBtn" data-i18n="git.refresh">Actualizar estado</button><button type="button" class="editor-action" id="gitInitBtn" data-i18n="git.init">Inicializar Git</button><button type="button" class="editor-action" id="gitFetchBtn" data-i18n="git.fetch">Fetch</button><button type="button" class="editor-action" id="gitPullBtn" data-i18n="git.pull">Pull</button><button type="button" class="editor-action" id="gitPushBtn" data-i18n="git.push">Push</button></div><label><span data-i18n="git.commitMessage">Mensaje del commit</span><input id="gitCommitMessage" data-i18n-placeholder="git.commitPlaceholder" placeholder="Mensaje del commit"></label><button type="button" class="editor-action git-commit-button" id="gitCommitBtn" data-i18n="git.commit">Crear commit</button></div>
+            <details class="git-history"><summary data-i18n="git.history">Historial reciente</summary><pre id="gitHistoryOutput" data-i18n="git.historyEmpty">Sin historial disponible.</pre></details>
+          </section>
         </div>
         <div class="modal-actions">
           <button
@@ -186,6 +203,14 @@
           </button>
         </div>
       </form>
+    </div>
+    <div class="modal-backdrop" id="runnerModalBackdrop" hidden>
+      <section class="modal-card runner-modal" role="dialog" aria-modal="true" aria-labelledby="runnerModalTitle">
+        <div class="runner-header"><div><h2 id="runnerModalTitle" data-i18n="runner.title">Collection runner</h2><p id="runnerModalDescription"></p></div><button type="button" class="modal-cancel" id="runnerModalCloseBtn" data-i18n="common.close">Close</button></div>
+        <div class="runner-controls"><label><span data-i18n="runner.delay">Delay (ms)</span><input id="runnerDelayInput" type="number" min="0" value="0"></label><button type="button" class="modal-confirm" id="runnerStartBtn" data-i18n="runner.run">Run collection</button><button type="button" class="editor-action" id="runnerDownloadBtn" data-i18n="runner.download">Download report</button></div>
+        <div class="runner-summary" id="runnerSummary" data-i18n="runner.ready">Ready to run.</div>
+        <div class="runner-results" id="runnerResults" aria-live="polite"></div>
+      </section>
     </div>
 
     <!-- Component Loader -->

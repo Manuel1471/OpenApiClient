@@ -3,6 +3,8 @@ const configHandlers = require('./configHandlers');
 const fileHandlers = require('./fileHandlers');
 const collectionHandlers = require('./collectionHandlers');
 const requestHandlers = require('./requestHandlers');
+const protocolHandlers = require('./protocolHandlers');
+const gitHandlers = require('./gitHandlers');
 
 /**
  * Inicializa todos los handlers IPC

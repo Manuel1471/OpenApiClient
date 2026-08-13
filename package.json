@@ -1,6 +1,6 @@
 {
   "name": "OpenApiClient",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "main": "main/main.js",
   "repository": "https://github.com/Manuel1471/OpenApiClient.git",
   "author": "Manuel Garcia <manuel-garccia@hotmail.com>",
@@ -14,6 +14,7 @@
     "dev": "NODE_ENV=development electron .",
     "test": "node --test test/collectionService.test.js test/translations.test.js",
     "test:e2e": "node --test test/electron.e2e.test.js",
+    "run:collection": "node scripts/run-collection.js",
     "dist": "electron-builder",
     "dist:mac": "electron-builder --mac dmg",
     "dist:win": "electron-builder --win nsis",
@@ -26,6 +27,9 @@
     "png-to-ico": "^3.0.2"
   },
   "dependencies": {
+    "@grpc/grpc-js": "^1.14.4",
+    "@grpc/proto-loader": "^0.8.1",
+    "ws": "^8.21.3",
     "yaml": "^2.8.1"
   },
   "build": {
