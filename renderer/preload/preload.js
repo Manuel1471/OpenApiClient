@@ -33,6 +33,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
     return await ipcRenderer.invoke("select-file");
   },
   selectUploadFiles: async () => ipcRenderer.invoke("select-upload-file"),
+  selectProtoFile: async () => ipcRenderer.invoke("select-proto-file"),
+  selectDirectory: async () => ipcRenderer.invoke("select-directory"),
 
   // Leer contenido de un archivo
   readFile: async (filePath) => {
@@ -81,6 +83,20 @@ contextBridge.exposeInMainWorld("electronAPI", {
   },
   cancelRequest: async (requestId) =>
     ipcRenderer.invoke("cancel-request", requestId),
+  connectWebSocket: (request) => ipcRenderer.invoke("websocket-connect", request),
+  sendWebSocket: (request) => ipcRenderer.invoke("websocket-send", request),
+  closeWebSocket: (id) => ipcRenderer.invoke("websocket-close", id),
+  grpcCall: (request) => ipcRenderer.invoke("grpc-call", request),
+  onWebSocketMessage: (callback) => ipcRenderer.on("websocket-message", (_, message) => callback(message)),
+  onWebSocketStatus: (callback) => ipcRenderer.on("websocket-status", (_, status) => callback(status)),
+  gitStatus: (directory) => ipcRenderer.invoke("git-status", directory),
+  gitInit: (directory) => ipcRenderer.invoke("git-init", directory),
+  gitCommit: (data) => ipcRenderer.invoke("git-commit", data),
+  gitBranch: (directory) => ipcRenderer.invoke("git-branch", directory),
+  gitHistory: (directory) => ipcRenderer.invoke("git-history", directory),
+  gitFetch: (directory) => ipcRenderer.invoke("git-fetch", directory),
+  gitPull: (directory) => ipcRenderer.invoke("git-pull", directory),
+  gitPush: (directory) => ipcRenderer.invoke("git-push", directory),
 
   // Obtener la lista de colecciones
   // Información del sistema (si es necesario)

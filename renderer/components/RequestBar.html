@@ -7,6 +7,13 @@
     data-i18n-title="request.environment"
     title="Entorno activo"
   ></select>
+  <select class="protocol-select" id="protocolSelect" data-i18n-aria-label="protocol.label" aria-label="Protocolo">
+    <option value="http" data-i18n="protocol.http">HTTP</option>
+    <option value="graphql" data-i18n="protocol.graphql">GraphQL</option>
+    <option value="websocket" data-i18n="protocol.websocket">WebSocket</option>
+    <option value="soap" data-i18n="protocol.soap">SOAP</option>
+    <option value="grpc" data-i18n="protocol.grpc">gRPC</option>
+  </select>
   <select class="method-select" id="methodSelect">
     <option value="GET">GET</option>
     <option value="POST">POST</option>

@@ -28,6 +28,8 @@ const EMPTY_REQUEST = Object.freeze({
   body: { type: "none", format: "json", content: "", formData: [] },
   auth: { type: "none" },
 });
+const RESPONSE_RENDER_LIMIT = 250_000;
+const TIMELINE_BODY_LIMIT = 16_000;
 
 const state = {
   config: null,
@@ -37,8 +39,12 @@ const state = {
   modalAction: null,
   activeExecutionId: null,
   isDirty: false,
+  websocketId: null,
   currentResponse: null,
   previousResponse: null,
+  timeline: [],
+  timelineFilter: "all",
+  runner: { collection: null, results: [] },
   collapsedFolders: new Set(),
   lastUndo: null,
 };
@@ -83,6 +89,7 @@ function normalizeConfig(source) {
     globalVariables: normalizeVariables(config.globalVariables),
     folders: Array.isArray(config.folders) ? config.folders.filter((folder) => folder?.id && folder?.name) : [],
     collectionFolders: config.collectionFolders && typeof config.collectionFolders === "object" ? config.collectionFolders : {},
+    gitRepository: typeof config.gitRepository === "string" ? config.gitRepository : "",
     history: Array.isArray(config.history)
       ? config.history.map(normalizeRequest)
       : [],
@@ -215,6 +222,13 @@ function bindInterface() {
   byId("saveRequestBtn").addEventListener("click", saveRequest);
   byId("saveRequestAsBtn").addEventListener("click", () => saveRequest(true));
   byId("sendBtn").addEventListener("click", sendRequest);
+  byId("protocolSelect").addEventListener("change", updateProtocolWorkspace);
+  byId("websocketConnectBtn").addEventListener("click", connectWebSocket);
+  byId("websocketDisconnectBtn").addEventListener("click", disconnectWebSocket);
+  byId("websocketSendBtn").addEventListener("click", sendWebSocketMessage);
+  byId("grpcProtoBtn").addEventListener("click", chooseGrpcProto);
+  window.electronAPI.onWebSocketMessage(({ id, data }) => { if (id === state.websocketId) appendWebSocketLog(`← ${data}`); });
+  window.electronAPI.onWebSocketStatus(({ id, status, detail }) => { if (id === state.websocketId) appendWebSocketLog(`• ${status}: ${detail || ""}`); });
   byId("environmentSelect").addEventListener("change", async (event) => {
     state.config.activeEnvironmentId = event.target.value;
     await persistConfig();
@@ -234,7 +248,11 @@ function bindInterface() {
     addKeyValueRow("formDataRows"),
   );
   byId("cancelRequestBtn").addEventListener("click", cancelRequest);
-  byId("collectionSearchInput").addEventListener("input", renderCollections);
+  let searchTimer;
+  byId("collectionSearchInput").addEventListener("input", () => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(renderCollections, 120);
+  });
   byId("compareResponseBtn").addEventListener("click", compareResponse);
   byId("exportHistoryBtn").addEventListener("click", exportHistory);
   byId("runLimitTestBtn").addEventListener("click", runLimitTest);
@@ -274,6 +292,12 @@ function bindInterface() {
     if (event.target === byId("userModalBackdrop")) closeUserWindow();
   });
   byId("userModalForm").addEventListener("submit", saveUserSettings);
+  byId("runnerModalCloseBtn").addEventListener("click", closeCollectionRunner);
+  byId("runnerModalBackdrop").addEventListener("click", (event) => {
+    if (event.target === byId("runnerModalBackdrop")) closeCollectionRunner();
+  });
+  byId("runnerStartBtn").addEventListener("click", runCollectionRunner);
+  byId("runnerDownloadBtn").addEventListener("click", downloadRunnerReport);
   document
     .querySelectorAll(".settings-tab")
     .forEach((tab) =>
@@ -294,6 +318,17 @@ function bindInterface() {
   byId("deleteEnvironmentBtn").addEventListener("click", deleteEnvironment);
   byId("addEnvironmentVariableBtn").addEventListener("click", () => addVariableRow("environmentVariablesRows"));
   byId("addGlobalVariableBtn").addEventListener("click", () => addVariableRow("globalVariablesRows"));
+  byId("gitChooseRepoBtn").addEventListener("click", chooseGitRepository);
+  byId("gitRefreshBtn").addEventListener("click", refreshGitStatus);
+  byId("gitInitBtn").addEventListener("click", initializeGit);
+  byId("gitFetchBtn").addEventListener("click", () => runGitAction("fetch"));
+  byId("gitPullBtn").addEventListener("click", () => runGitAction("pull"));
+  byId("gitPushBtn").addEventListener("click", () => runGitAction("push"));
+  byId("gitCommitBtn").addEventListener("click", createGitCommit);
+  byId("clearTimelineBtn").addEventListener("click", clearTimeline);
+  document.querySelectorAll(".timeline-filter").forEach((button) =>
+    button.addEventListener("click", () => setTimelineFilter(button.dataset.timelineFilter)),
+  );
   document.querySelectorAll(".response-resize-handle").forEach((handle) => {
     handle.addEventListener("pointerdown", startResponseResize);
     handle.addEventListener("keydown", handleResponseResizeKeyboard);
@@ -303,13 +338,14 @@ function bindInterface() {
     .querySelector(".request-content")
     .addEventListener("input", markDirty);
   initDragAndDrop(document.querySelector(".sidebar"));
+  updateProtocolWorkspace();
 }
 
 function byId(id) {
   return document.getElementById(id);
 }
 function updateWelcomeMessage(config) {
-  byId("userName").textContent = config.user?.name || "Usuario";
+  byId("userName").textContent = config.user?.name || t("account.defaultName");
 }
 async function persistConfig() {
   const result = await window.electronAPI.saveConfig(state.config);
@@ -380,7 +416,7 @@ function renderCollections() {
       folder.setAttribute("role", "button");
       folder.setAttribute("tabindex", "0");
       folder.setAttribute("aria-expanded", String(!isCollapsed));
-      folder.innerHTML = `<span class="folder-chevron" aria-hidden="true">▾</span><span>${escapeHtml(folderNameForCollection(collection))}</span>${folderId === "root" ? "" : `<span class="folder-actions"><button type="button" data-folder-action="rename">✎</button><button type="button" data-folder-action="delete">×</button></span>`}`;
+      folder.innerHTML = `<span class="folder-chevron" aria-hidden="true">▾</span><span>${escapeHtml(folderNameForCollection(collection))}</span><span class="folder-actions"><button type="button" data-folder-action="docs" title="${escapeHtml(t("docs.generate"))}">▤</button>${folderId === "root" ? "" : `<button type="button" data-folder-action="rename" title="${escapeHtml(t("common.rename"))}">✎</button><button type="button" data-folder-action="delete" title="${escapeHtml(t("common.delete"))}">×</button>`}</span>`;
       folder.dataset.folderId = folderId;
       folder.addEventListener("dragover", (event) => event.preventDefault());
       folder.addEventListener("drop", async (event) => {
@@ -430,7 +466,7 @@ function renderCollections() {
       (request) =>
         !term || `${request.name} ${request.url}`.toLowerCase().includes(term),
     ).length;
-    header.innerHTML = `<span class="collection-chevron" aria-hidden="true">›</span><span class="collection-name">${escapeHtml(collection.info?.name || collection.name || t("common.collection"))}</span><span class="collection-count">${requestCount}</span><span class="collection-actions"><button type="button" data-collection-action="rename" title="${escapeHtml(t("common.rename"))}">✎</button><button type="button" data-collection-action="export" title="${escapeHtml(t("common.export"))}">⇧</button><button type="button" data-collection-action="remove" title="${escapeHtml(t("common.remove"))}">×</button></span>`;
+    header.innerHTML = `<span class="collection-chevron" aria-hidden="true">›</span><span class="collection-name">${escapeHtml(collection.info?.name || collection.name || t("common.collection"))}</span><span class="collection-count">${requestCount}</span><span class="collection-actions"><button type="button" data-collection-action="run" title="${escapeHtml(t("runner.run"))}">▶</button><button type="button" data-collection-action="docs" title="${escapeHtml(t("docs.generate"))}">▤</button><button type="button" data-collection-action="rename" title="${escapeHtml(t("common.rename"))}">✎</button><button type="button" data-collection-action="export" title="${escapeHtml(t("common.export"))}">⇧</button><button type="button" data-collection-action="remove" title="${escapeHtml(t("common.remove"))}">×</button></span>`;
     const requests = document.createElement("div");
     requests.className = "collection-requests is-collapsed";
     (collection.requests || [])
@@ -577,6 +613,10 @@ function openFolderDialog() {
 }
 function handleFolderAction(action, folderId) {
   const folder = state.config.folders.find((item) => item.id === folderId);
+  if (action === "docs") {
+    const collections = state.collections.filter((collection) => folderIdForCollection(collection) === folderId);
+    return generateDocumentation(collections, folder?.name || t("folder.root"), t("docs.folder"));
+  }
   if (!folder) return;
   if (action === "rename") return openModal({
     title: t("folder.rename"), description: t("folder.description"), label: t("folder.name"),
@@ -595,6 +635,8 @@ function handleFolderAction(action, folderId) {
 }
 
 async function handleCollectionAction(action, collection) {
+  if (action === "run") return openCollectionRunner(collection);
+  if (action === "docs") return generateDocumentation([collection], collection.info?.name || collection.name, t("docs.collection"));
   if (action === "rename") {
     return openModal({
       title: t("dialog.renameCollection.title"),
@@ -626,6 +668,114 @@ async function handleCollectionAction(action, collection) {
       },
     });
 }
+function generateDocumentation(collections, name, sourceType) {
+  const safeCollections = collections.filter(Boolean);
+  const requestCount = safeCollections.reduce((total, collection) => total + (collection.requests?.length || 0), 0);
+  const collectionLinks = safeCollections.map((collection, index) => {
+    const collectionName = collection.info?.name || collection.name || `${t("docs.collection")} ${index + 1}`;
+    return `- [${escapeMarkdown(collectionName)}](#${documentationAnchor(collectionName)})`;
+  }).join("\n");
+  const sections = safeCollections.map((collection, index) => {
+    const collectionName = collection.info?.name || collection.name || `${t("docs.collection")} ${index + 1}`;
+    const requests = (collection.requests || []).map(markdownRequest).join("\n\n---\n\n");
+    return `## ${escapeMarkdown(collectionName)}\n\n${requests || `_${t("docs.noRequestsInCollection")}_`}`;
+  }).join("\n\n---\n\n");
+  const markdown = `# ${escapeMarkdown(name)} ${t("docs.apiReference")}\n\n> ${t("docs.generatedBy")} · ${new Date().toISOString().slice(0, 10)}\n\n## ${t("docs.overview")}\n\n| ${t("docs.scope")} | ${t("docs.collections")} | ${t("docs.requests")} |\n| --- | ---: | ---: |\n| ${escapeMarkdown(sourceType)} | ${safeCollections.length} | ${requestCount} |\n\n${t("docs.sensitiveWarning")}\n\n## ${t("docs.contents")}\n\n${collectionLinks || `_${t("docs.noCollectionsSelected")}_`}\n\n---\n\n${sections || `_${t("docs.noRequests")}_`}\n\n---\n\n_${t("docs.disclaimer")}_\n`;
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(new Blob([markdown], { type: "text/markdown;charset=utf-8" }));
+  link.download = `${slugify(name)}-documentation.md`;
+  link.click();
+  URL.revokeObjectURL(link.href);
+  showToast(t("docs.generated"), "success");
+}
+function markdownRequest(request) {
+  const method = (request.method || "GET").toUpperCase();
+  const requestName = request.name || t("docs.untitledRequest");
+  const lines = [`### ${method} ${escapeMarkdown(requestName)}`, "", `**${t("docs.endpoint")}:** \`${escapeMarkdown(request.url || t("docs.notConfigured"))}\``];
+  if (request.params?.length) lines.push("", `#### ${t("docs.queryParameters")}`, "", markdownKeyValues(request.params));
+  if (request.headers?.length) lines.push("", `#### ${t("docs.requestHeaders")}`, "", markdownKeyValues(request.headers, true));
+  if (request.auth?.type && request.auth.type !== "none") lines.push("", `#### ${t("docs.authentication")}`, "", `**${t("docs.type")}:** \`${escapeMarkdown(request.auth.type)}\``, "", t("docs.credentialsOmitted"));
+  if (request.body?.type === "form-data" && request.body.formData?.length) lines.push("", `#### ${t("docs.formData")}`, "", markdownKeyValues(request.body.formData, true));
+  if (request.body?.content) lines.push("", `#### ${t("docs.requestBody")}`, "", `\`\`\`${request.body.format || "text"}\n${sanitizeDocumentationBody(request.body.content)}\n\`\`\``);
+  if (request.tests?.expectedStatus || request.tests?.header || request.tests?.jsonPath) {
+    const assertions = [];
+    if (request.tests.expectedStatus) assertions.push(`${t("docs.expectedStatus")}: \`${request.tests.expectedStatus}\``);
+    if (request.tests.header) assertions.push(`${t("docs.requiredHeader")}: \`${escapeMarkdown(request.tests.header)}\``);
+    if (request.tests.jsonPath) assertions.push(`${t("docs.jsonAssertion")}: \`${escapeMarkdown(request.tests.jsonPath)}\` (${escapeMarkdown(request.tests.operator || "exists")})`);
+    lines.push("", `#### ${t("docs.assertions")}`, "", ...assertions.map((assertion) => `- ${assertion}`));
+  }
+  return lines.join("\n");
+}
+function markdownKeyValues(values, redact = false) {
+  return [`| ${t("docs.name")} | ${t("docs.value")} |`, "| --- | --- |", ...values.map(({ key, value, filePath, mimeType }) => {
+    const sensitive = redact && /authorization|token|api[-_]?key|secret|password|cookie/i.test(key);
+    const displayValue = filePath ? `[file] ${filePath.split("/").pop()}${mimeType ? ` (${mimeType})` : ""}` : value;
+    return `| ${escapeMarkdownTable(key)} | ${sensitive ? `[${t("docs.redacted")}]` : escapeMarkdownTable(displayValue || "—")} |`;
+  })].join("\n");
+}
+function sanitizeDocumentationBody(value) { return String(value).replace(/("?(?:token|secret|password|api[_-]?key|authorization)"?\s*[:=]\s*["'])[^"'\s,}]+/gi, "$1[REDACTED]"); }
+function escapeMarkdown(value) { return String(value || "").replace(/[\\`*_{}\[\]<>]/g, "\\$&"); }
+function escapeMarkdownTable(value) { return escapeMarkdown(value).replace(/\|/g, "\\|").replace(/\n/g, "<br>"); }
+function documentationAnchor(value) { return String(value || "collection").toLowerCase().replace(/[^a-z0-9\s-]/g, "").trim().replace(/\s+/g, "-"); }
+function openCollectionRunner(collection) {
+  state.runner = { collection, results: [] };
+  byId("runnerModalDescription").textContent = tFormat("runner.description", { name: collection.info?.name || collection.name || t("common.collection") });
+  byId("runnerSummary").textContent = tFormat("runner.readyCount", { count: collection.requests?.length || 0 });
+  byId("runnerResults").innerHTML = "";
+  byId("runnerDownloadBtn").disabled = true;
+  byId("runnerModalBackdrop").hidden = false;
+}
+function closeCollectionRunner() { byId("runnerModalBackdrop").hidden = true; }
+async function runCollectionRunner() {
+  const collection = state.runner.collection;
+  const requests = collection?.requests || [];
+  if (!requests.length) return showToast(t("runner.empty"), "error");
+  const delay = Math.max(0, Number(byId("runnerDelayInput").value) || 0);
+  byId("runnerStartBtn").disabled = true;
+  state.runner.results = [];
+  byId("runnerResults").innerHTML = "";
+  for (let index = 0; index < requests.length; index += 1) {
+    byId("runnerSummary").textContent = tFormat("runner.running", { current: index + 1, total: requests.length });
+    const result = await executeRunnerRequest(normalizeRequest(requests[index]));
+    state.runner.results.push(result);
+    renderRunnerResults();
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    if (delay && index < requests.length - 1) await new Promise((resolve) => setTimeout(resolve, delay));
+  }
+  const passed = state.runner.results.filter((result) => result.passed).length;
+  byId("runnerSummary").textContent = tFormat("runner.complete", { passed, total: requests.length });
+  byId("runnerDownloadBtn").disabled = false;
+  byId("runnerStartBtn").disabled = false;
+}
+async function executeRunnerRequest(request) {
+  try {
+    const url = new URL(replaceVariables(request.url));
+    request.params.forEach(({ key, value }) => url.searchParams.set(key, replaceVariables(value)));
+    const headers = Object.fromEntries(request.headers.map(({ key, value }) => [key, replaceVariables(value)]));
+    if (request.auth.type === "bearer") headers.Authorization = `Bearer ${replaceVariables(request.auth.token)}`;
+    if (request.auth.type === "basic") headers.Authorization = `Basic ${btoa(`${request.auth.username}:${request.auth.password}`)}`;
+    if (request.auth.type === "apikey") headers[request.auth.keyName] = replaceVariables(request.auth.token);
+    const response = await window.electronAPI.executeRequest({ id: crypto.randomUUID(), url: url.toString(), method: request.method, headers, body: request.body.type === "none" ? undefined : request.body.content, formData: request.body.type === "form-data" ? request.body.formData : null, timeout: Number(state.config.requestTimeout) || 30000 });
+    if (!response.success) return { request, passed: false, status: "—", duration: response.duration || 0, detail: response.error };
+    const failures = runnerAssertionFailures(request.tests || {}, response);
+    return { request, passed: !failures.length, status: response.status, duration: response.duration, detail: failures.join("; ") || t("runner.passed") };
+  } catch (error) { return { request, passed: false, status: "—", duration: 0, detail: error.message }; }
+}
+function runnerAssertionFailures(tests, response) {
+  const failures = [];
+  if (tests.expectedStatus && Number(tests.expectedStatus) !== response.status) failures.push(tFormat("assertion.statusMismatch", { expected: tests.expectedStatus, actual: response.status }));
+  if (tests.header && !Object.keys(response.headers || {}).some((key) => key.toLowerCase() === String(tests.header).toLowerCase())) failures.push(tFormat("assertion.headerMissing", { header: tests.header }));
+  return failures;
+}
+function renderRunnerResults() {
+  byId("runnerResults").innerHTML = state.runner.results.map((result) => `<div class="runner-result ${result.passed ? "success" : "error"}"><span>${result.passed ? "✓" : "×"}</span><strong>${escapeHtml(result.request.name || result.request.url)}</strong><small>${escapeHtml(String(result.status))} · ${result.duration} ms · ${escapeHtml(result.detail)}</small></div>`).join("");
+}
+function downloadRunnerReport() {
+  const collection = state.runner.collection;
+  const report = `# ${collection.info?.name || collection.name} — ${t("runner.report")}\n\n${tFormat("runner.complete", { passed: state.runner.results.filter((result) => result.passed).length, total: state.runner.results.length })}\n\n| ${t("docs.name")} | ${t("runner.status")} | ${t("timeline.duration")} | ${t("timeline.outcome")} |\n| --- | ---: | ---: | --- |\n${state.runner.results.map((result) => `| ${escapeMarkdownTable(result.request.name || result.request.url)} | ${result.status} | ${result.duration} ms | ${result.passed ? t("runner.passed") : escapeMarkdownTable(result.detail)} |`).join("\n")}\n`;
+  const link = document.createElement("a"); link.href = URL.createObjectURL(new Blob([report], { type: "text/markdown;charset=utf-8" })); link.download = `${slugify(collection.info?.name || collection.name)}-test-report.md`; link.click(); URL.revokeObjectURL(link.href);
+}
+function slugify(value) { return String(value || "api").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, ""); }
 async function handleRequestAction(action, request, collection) {
   try {
     if (action === "edit") {
@@ -723,7 +873,7 @@ function loadRequest(request, collectionPath) {
         item.dataset.collectionPath === collectionPath,
     );
   });
-  showToast(`Request cargada: ${request.name || "sin nombre"}`, "success");
+  showToast(tFormat("toast.requestLoaded", { name: request.name || t("common.unnamed") }), "success");
 }
 function showRequestContent() {
   byId("emptyRequestState").classList.add("hidden");
@@ -750,6 +900,14 @@ function clearRequestEditor() {
   clearResponse();
 }
 function hydrateRequest(request) {
+  byId("protocolSelect").value = request.protocol || "http";
+  byId("protocolEditor").value = request.protocolData?.editor || "";
+  byId("graphqlVariables").value = request.protocolData?.variables || "";
+  byId("grpcProtoPath").value = request.protocolData?.protoPath || "";
+  byId("grpcService").value = request.protocolData?.service || "";
+  byId("grpcMethod").value = request.protocolData?.method || "";
+  byId("grpcPayload").value = request.protocolData?.payload || "";
+  updateProtocolWorkspace();
   byId("methodSelect").value = request.method || "GET";
   byId("urlInput").value = request.url || "";
   fillKeyValues("paramsRows", request.params || []);
@@ -786,7 +944,7 @@ function addKeyValueRow(containerId, pair = { key: "", value: "" }) {
   row.className = "kv-row";
   const canAttachFile = containerId === "formDataRows";
   row.classList.toggle("form-data-row", canAttachFile);
-  row.innerHTML = `<input class="kv-key" aria-label="Key" placeholder="nombre" value="${escapeHtml(pair.key || "")}"><input class="kv-value" aria-label="Value" placeholder="valor" value="${escapeHtml(pair.value || pair.filePath || "")}">${canAttachFile ? `<input class="kv-mime" aria-label="MIME type" placeholder="MIME" value="${escapeHtml(pair.mimeType || "")}"><button class="btn-file" type="button" aria-label="Attach files" title="Attach files">⌁</button>` : ""}<button class="btn-remove" type="button" aria-label="Remove row">×</button>`;
+  row.innerHTML = `<input class="kv-key" aria-label="${escapeHtml(t("form.key"))}" placeholder="${escapeHtml(t("form.key"))}" value="${escapeHtml(pair.key || "")}"><input class="kv-value" aria-label="${escapeHtml(t("form.value"))}" placeholder="${escapeHtml(t("form.value"))}" value="${escapeHtml(pair.value || pair.filePath || "")}">${canAttachFile ? `<input class="kv-mime" aria-label="${escapeHtml(t("form.mime"))}" placeholder="MIME" value="${escapeHtml(pair.mimeType || "")}"><button class="btn-file" type="button" aria-label="${escapeHtml(t("form.attachFiles"))}" title="${escapeHtml(t("form.attachFiles"))}">⌁</button>` : ""}<button class="btn-remove" type="button" aria-label="${escapeHtml(t("form.remove"))}">×</button>`;
   row.querySelector(".btn-file")?.addEventListener("click", async () => {
     const filePaths = await window.electronAPI.selectUploadFiles();
     if (!filePaths?.length) return;
@@ -860,8 +1018,68 @@ function collectRequest(name = state.activeRequest?.name || "") {
       variableName: byId("chainVariableName")?.value.trim() || "",
       jsonPath: byId("chainJsonPath")?.value.trim() || "",
     },
+    protocol: byId("protocolSelect")?.value || "http",
+    protocolData: collectProtocolData(),
   });
 }
+function collectProtocolData() {
+  return {
+    editor: byId("protocolEditor")?.value || "",
+    variables: byId("graphqlVariables")?.value || "",
+    protoPath: byId("grpcProtoPath")?.value || "",
+    service: byId("grpcService")?.value || "",
+    method: byId("grpcMethod")?.value || "",
+    payload: byId("grpcPayload")?.value || "",
+  };
+}
+function updateProtocolWorkspace() {
+  const protocol = byId("protocolSelect")?.value || "http";
+  const workspace = byId("protocolWorkspace");
+  workspace.hidden = protocol === "http";
+  document.querySelectorAll(".protocol-card").forEach((card) => { card.hidden = !card.classList.contains(`${protocol}-only`); });
+  const availableTabs = {
+    http: ["params", "headers", "body", "auth", "testing"],
+    graphql: ["headers", "auth", "testing"],
+    soap: ["headers", "auth", "testing"],
+    websocket: ["headers"],
+    grpc: ["testing"],
+  }[protocol];
+  document.querySelectorAll(".tab").forEach((tab) => {
+    const visible = availableTabs.includes(tab.dataset.tab);
+    tab.hidden = !visible;
+    tab.setAttribute("aria-hidden", String(!visible));
+  });
+  const activeTab = document.querySelector(".tab.active");
+  if (!activeTab || !availableTabs.includes(activeTab.dataset.tab)) switchTab(availableTabs[0]);
+  byId("methodSelect").disabled = ["websocket", "grpc"].includes(protocol);
+  byId("sendBtn").querySelector("span").textContent = protocol === "websocket" ? t("protocol.connect") : protocol === "grpc" ? t("protocol.call") : t("request.send");
+  const details = {
+    graphql: [t("protocol.graphql"), t("protocol.graphqlHint"), t("protocol.operation")],
+    soap: [t("protocol.soap"), t("protocol.soapHint"), t("protocol.xmlEnvelope")],
+  };
+  if (details[protocol]) {
+    byId("protocolTitle").textContent = details[protocol][0];
+    byId("protocolHint").textContent = details[protocol][1];
+    byId("protocolEditorLabel").textContent = details[protocol][2];
+  }
+}
+async function chooseGrpcProto() {
+  const path = await window.electronAPI.selectProtoFile();
+  if (path) byId("grpcProtoPath").value = path;
+}
+async function connectWebSocket() {
+  const url = replaceVariables(byId("urlInput").value);
+  state.websocketId ||= crypto.randomUUID();
+  const result = await window.electronAPI.connectWebSocket({ id: state.websocketId, url, headers: Object.fromEntries(getKeyValues("headersRows")) });
+  appendWebSocketLog(result.success ? `• connected to ${url}` : `• error: ${result.error}`);
+}
+async function disconnectWebSocket() { if (state.websocketId) await window.electronAPI.closeWebSocket(state.websocketId); }
+async function sendWebSocketMessage() {
+  const message = byId("websocketMessage").value;
+  const result = await window.electronAPI.sendWebSocket({ id: state.websocketId, message });
+  appendWebSocketLog(result.success ? `→ ${message}` : `• error: ${result.error}`);
+}
+function appendWebSocketLog(line) { const log = byId("websocketLog"); log.textContent += `${line}\n`; log.scrollTop = log.scrollHeight; }
 function collectTests() {
   return {
     expectedStatus: byId("assertStatus")?.value || "",
@@ -922,6 +1140,16 @@ function validateRequest(request) {
 }
 async function sendRequest() {
   const request = collectRequest();
+  if (request.protocol === "websocket") return connectWebSocket();
+  if (request.protocol === "grpc") return executeGrpc(request);
+  if (request.protocol === "graphql") {
+    request.method = "POST";
+    request.body = { type: "raw", format: "json", content: JSON.stringify({ query: request.protocolData.editor, variables: request.protocolData.variables ? JSON.parse(request.protocolData.variables) : undefined }, null, 2), formData: [] };
+  }
+  if (request.protocol === "soap") {
+    request.method = "POST";
+    request.body = { type: "raw", format: "xml", content: request.protocolData.editor, formData: [] };
+  }
   const validation = validateRequest(request);
   if (validation) return showToast(validation, "error");
   const url = new URL(replaceVariables(request.url));
@@ -960,6 +1188,7 @@ async function sendRequest() {
   byId("cancelRequestBtn").disabled = false;
   state.activeExecutionId = crypto.randomUUID();
   const started = performance.now();
+  const timelineRequest = buildTimelineRequest(request, url, headers, options.body, formData);
   try {
     const result = await window.electronAPI.executeRequest({
       id: state.activeExecutionId,
@@ -970,7 +1199,11 @@ async function sendRequest() {
       formData,
       timeout: Number(state.config.requestTimeout) || 30000,
     });
-    if (!result.success) throw new Error(result.error);
+    if (!result.success) {
+      const requestError = new Error(result.error);
+      requestError.errorType = result.errorType;
+      throw requestError;
+    }
     let body = result.body;
     try {
       body = JSON.stringify(JSON.parse(result.body), null, 2);
@@ -996,6 +1229,12 @@ async function sendRequest() {
       duration: result.duration,
       createdAt: new Date().toISOString(),
     });
+    addTimelineEntry({
+      request: timelineRequest,
+      response: { status: result.status, statusText: result.statusText, headers: result.headers, body: previewText(body, TIMELINE_BODY_LIMIT), size: result.size },
+      network: { duration: result.duration, outcome: ok ? "success" : "http" },
+      createdAt: new Date().toISOString(),
+    });
     showToast(
       ok ? t("toast.responseReceived") : tFormat("toast.httpResponse", { status: result.status }),
       ok ? "success" : "error",
@@ -1004,11 +1243,25 @@ async function sendRequest() {
     const detail = error.errorType ? `${t(`network.${error.errorType}`)} · ${error.message}` : error.message;
     setConnectionStatus(t("response.offline"), "error", detail);
     showToast(tFormat("toast.networkError", { message: detail }), "error");
+    addTimelineEntry({
+      request: timelineRequest,
+      response: null,
+      network: { duration: Math.round(performance.now() - started), outcome: error.errorType || "network", error: detail },
+      createdAt: new Date().toISOString(),
+    });
   } finally {
     byId("sendBtn").disabled = false;
     byId("cancelRequestBtn").disabled = true;
     state.activeExecutionId = null;
   }
+}
+async function executeGrpc(request) {
+  const data = request.protocolData;
+  if (!data.protoPath || !data.service || !data.method) return showToast(t("protocol.grpcRequired"), "error");
+  setConnectionStatus(t("protocol.calling"), "loading", data.service);
+  const result = await window.electronAPI.grpcCall({ protoPath: data.protoPath, service: data.service, method: data.method, payload: data.payload, address: replaceVariables(request.url).replace(/^grpc:\/\//, "") });
+  if (!result.success) { setConnectionStatus(t("response.offline"), "error", result.error); return showToast(result.error, "error"); }
+  renderResponseBody(result.body); setConnectionStatus(t("protocol.success"), "success", data.service);
 }
 async function applyResponseChain(request, body) {
   const name = request.chaining?.variableName;
@@ -1035,6 +1288,10 @@ function renderResponseBody(body) {
   state.previousResponse = state.currentResponse;
   state.currentResponse = body;
   const target = byId("responseBody");
+  if (body.length > RESPONSE_RENDER_LIMIT) {
+    target.textContent = `${previewText(body, RESPONSE_RENDER_LIMIT)}\n\n${tFormat("response.previewLimited", { size: formatBytes(new Blob([body]).size) })}`;
+    return;
+  }
   try {
     JSON.parse(body);
     target.innerHTML = escapeHtml(body)
@@ -1059,13 +1316,76 @@ function clearResponse() {
   byId("responseHeaders").textContent = "…";
   setConnectionStatus(t("response.waiting"), "", t("response.offline"));
 }
+function previewText(value, limit) {
+  const text = String(value || "");
+  return text.length > limit ? `${text.slice(0, limit)}\n… ${tFormat("response.previewTruncated", { count: text.length - limit })}` : text;
+}
+function buildTimelineRequest(request, url, headers, body, formData) {
+  return {
+    method: request.method,
+    url: url.toString(),
+    params: request.params.map(({ key, value }) => ({ key, value: replaceVariables(value) })),
+    headers: redactTimelineHeaders(headers),
+    body: formData
+      ? formData.map(({ key, value, filePath, mimeType }) => ({ key, value: filePath ? `[file] ${filePath.split("/").pop()}` : value, mimeType }))
+      : redactTimelineValue(body || ""),
+    auth: request.auth?.type || "none",
+    variables: extractTimelineVariables(request),
+  };
+}
+function redactTimelineHeaders(headers = {}) {
+  return Object.fromEntries(Object.entries(headers).map(([key, value]) => [key, /authorization|token|api[-_]?key|secret|password/i.test(key) ? "••••••" : value]));
+}
+function redactTimelineValue(value) {
+  return typeof value === "string" ? value.replace(/("?(?:token|secret|password|api[_-]?key)"?\s*[:=]\s*["'])[^"'\s,}]+/gi, "$1••••••") : value;
+}
+function extractTimelineVariables(request) {
+  return [...new Set(JSON.stringify(request).match(/{{\s*([^}]+)\s*}}/g) || [])]
+    .map((variable) => variable.replace(/[{}\s]/g, ""));
+}
+function addTimelineEntry(entry) {
+  state.timeline.unshift({ id: crypto.randomUUID(), ...entry });
+  state.timeline = state.timeline.slice(0, 50);
+  renderTimeline();
+}
+function clearTimeline() {
+  state.timeline = [];
+  renderTimeline();
+}
+function setTimelineFilter(filter) {
+  state.timelineFilter = filter;
+  document.querySelectorAll(".timeline-filter").forEach((button) =>
+    button.classList.toggle("active", button.dataset.timelineFilter === filter),
+  );
+  renderTimeline();
+}
+function renderTimeline() {
+  const list = byId("timelineList");
+  if (!list) return;
+  const filter = state.timelineFilter;
+  const entries = state.timeline.filter((entry) => filter === "all" || (filter === "request") || (filter === "response" && entry.response) || (filter === "network" && entry.network));
+  if (!entries.length) {
+    list.innerHTML = `<p class="timeline-empty">${escapeHtml(t("timeline.empty"))}</p>`;
+    return;
+  }
+  list.innerHTML = entries.map((entry) => timelineEntryMarkup(entry, filter)).join("");
+}
+function timelineEntryMarkup(entry, filter) {
+  const request = entry.request;
+  const response = entry.response;
+  const sections = [];
+  if (filter === "all" || filter === "request") sections.push(`<details open><summary>${escapeHtml(t("timeline.request"))}</summary><pre>${escapeHtml(`${request.method} ${request.url}\n\n${t("timeline.params")}:\n${JSON.stringify(request.params, null, 2)}\n\n${t("timeline.headers")}:\n${JSON.stringify(request.headers, null, 2)}\n\n${t("timeline.auth")}: ${request.auth}\n${t("timeline.variables")}: ${request.variables.join(", ") || "—"}\n\n${t("timeline.body")}:\n${typeof request.body === "string" ? request.body : JSON.stringify(request.body, null, 2)}`)}</pre></details>`);
+  if ((filter === "all" || filter === "response") && response) sections.push(`<details><summary>${escapeHtml(t("timeline.response"))} · ${response.status} ${escapeHtml(response.statusText || "")}</summary><pre>${escapeHtml(`${t("timeline.headers")}:\n${JSON.stringify(response.headers, null, 2)}\n\n${t("timeline.body")}:\n${response.body || ""}\n\n${t("timeline.size")}: ${formatBytes(response.size)}`)}</pre></details>`);
+  if (filter === "all" || filter === "network") sections.push(`<details ${filter === "network" ? "open" : ""}><summary>${escapeHtml(t("timeline.network"))} · ${escapeHtml(String(entry.network.duration))} ms</summary><pre>${escapeHtml(`${t("timeline.duration")}: ${entry.network.duration} ms\n${t("timeline.outcome")}: ${t(`timeline.${entry.network.outcome}`)}${entry.network.error ? `\n${t("timeline.error")}: ${entry.network.error}` : ""}\n${t("timeline.runtimeNote")}`)}</pre></details>`);
+  return `<article class="timeline-entry"><header><span class="timeline-method">${escapeHtml(request.method)}</span><span>${escapeHtml(request.url)}</span><time>${new Date(entry.createdAt).toLocaleTimeString()}</time></header>${sections.join("")}</article>`;
+}
 function compareResponse() {
   if (state.previousResponse == null)
-    return showToast("Run another request to compare", "error");
+    return showToast(t("response.compareRequired"), "error");
   showToast(
     state.previousResponse === state.currentResponse
-      ? "Responses match"
-      : "Responses differ",
+      ? t("response.match")
+      : t("response.differ"),
     "success",
   );
 }
@@ -1076,26 +1396,26 @@ function runAssertions(result, body) {
   const jsonPath = tests.jsonPath.trim();
   const failures = [];
   if (expectedStatus && Number(expectedStatus) !== result.status)
-    failures.push(`status expected ${expectedStatus}, got ${result.status}`);
+    failures.push(tFormat("assertion.statusMismatch", { expected: expectedStatus, actual: result.status }));
   if (
     header &&
     !Object.keys(result.headers || {}).some(
       (key) => key.toLowerCase() === header,
     )
   )
-    failures.push(`missing header: ${header}`);
+    failures.push(tFormat("assertion.headerMissing", { header }));
   if (jsonPath) {
     try {
       const value = jsonPath
         .split(".")
         .reduce((current, key) => current?.[key], JSON.parse(body));
-      if (value === undefined) failures.push(`missing JSON path: ${jsonPath}`);
+      if (value === undefined) failures.push(tFormat("assertion.pathMissing", { path: jsonPath }));
       else if (tests.operator === "equals" && String(value) !== tests.expectedValue)
-        failures.push(`JSON path ${jsonPath} expected ${tests.expectedValue}, got ${value}`);
+        failures.push(tFormat("assertion.valueMismatch", { path: jsonPath, expected: tests.expectedValue, actual: value }));
       else if (tests.operator === "contains" && !String(value).includes(tests.expectedValue))
-        failures.push(`JSON path ${jsonPath} does not contain ${tests.expectedValue}`);
+        failures.push(tFormat("assertion.valueMissing", { path: jsonPath, expected: tests.expectedValue }));
     } catch {
-      failures.push("response is not valid JSON");
+      failures.push(t("assertion.invalidJson"));
     }
   }
   const results = byId("assertionResults");
@@ -1111,7 +1431,7 @@ function runAssertions(result, body) {
   }
 }
 function saveResponseVariable() {
-  if (!state.currentResponse) return showToast("Run a request first", "error");
+  if (!state.currentResponse) return showToast(t("response.runRequired"), "error");
   openModal({
     title: t("dialog.saveVariable.title"),
     description: t("dialog.saveVariable.description"),
@@ -1169,7 +1489,7 @@ async function runLimitTest() {
   );
   const results = [];
   let cursor = 0;
-  byId("limitTestResults").textContent = `Running ${count} requests…`;
+  byId("limitTestResults").textContent = tFormat("testing.running", { count });
   const worker = async () => {
     while (cursor < count) {
       const number = ++cursor;
@@ -1187,7 +1507,7 @@ async function runLimitTest() {
   };
   await Promise.all(Array.from({ length: concurrency }, worker));
   const statuses = results.reduce((summary, result) => {
-    const key = result.success ? result.status : "network error";
+    const key = result.success ? result.status : t("testing.networkError");
     summary[key] = (summary[key] || 0) + 1;
     return summary;
   }, {});
@@ -1196,11 +1516,11 @@ async function runLimitTest() {
       results.length,
   );
   byId("limitTestResults").textContent =
-    `Completed: ${results.length}/${count}\nAverage: ${average} ms\nRate limited (429): ${statuses[429] || 0}\n${JSON.stringify(statuses, null, 2)}`;
+    `${tFormat("testing.completed", { completed: results.length, total: count })}\n${tFormat("testing.average", { duration: average })}\n${tFormat("testing.rateLimited", { count: statuses[429] || 0 })}\n${JSON.stringify(statuses, null, 2)}`;
 }
 async function copyResponse() {
   try {
-    await navigator.clipboard.writeText(byId("responseBody").textContent);
+    await navigator.clipboard.writeText(state.currentResponse || byId("responseBody").textContent);
     showToast(t("toast.responseCopied"), "success");
   } catch {
     showToast(t("error.copy"), "error");
@@ -1225,16 +1545,22 @@ function switchResponseTab(name) {
   byId("responseBodyPanel").classList.toggle("active", name === "body");
   byId("responseHeadersPanel").classList.toggle("active", name === "headers");
   byId("responseDiffPanel").classList.toggle("active", name === "diff");
+  byId("responseTimelinePanel").classList.toggle("active", name === "timeline");
   if (name === "diff") renderDiff();
+  if (name === "timeline") renderTimeline();
 }
 function renderDiff() {
   const previous = state.previousResponse || "";
   const current = state.currentResponse || "";
+  if (previous.length > RESPONSE_RENDER_LIMIT || current.length > RESPONSE_RENDER_LIMIT) {
+    byId("responseDiff").textContent = t("response.diffLimited");
+    return;
+  }
   try {
     const changes = diffJson(JSON.parse(previous), JSON.parse(current));
     byId("responseDiff").textContent = changes.length
       ? changes.map(({ path, before, after }) => `${path}\n- ${JSON.stringify(before)}\n+ ${JSON.stringify(after)}`).join("\n\n")
-      : "JSON objects match.";
+      : t("response.diffMatch");
     return;
   } catch {
     // Non-JSON responses use the line diff below.
@@ -1452,9 +1778,76 @@ function openUserWindow() {
   byId("accountNameInput").value = state.config.user?.name || "";
   byId("languageSelect").value = state.config.language;
   renderAccountEnvironments();
+  renderGitPanel();
   byId("userModalBackdrop").hidden = false;
   switchSettingsTab("profile");
   byId("accountNameInput").focus();
+}
+function renderGitPanel() {
+  const repository = state.config.gitRepository;
+  byId("gitRepositoryPath").textContent = repository || t("git.noRepository");
+  if (!repository) {
+    byId("gitBranchName").textContent = t("git.noBranch");
+    byId("gitStatusOutput").textContent = t("git.statusEmpty");
+    byId("gitHistoryOutput").textContent = t("git.historyEmpty");
+  }
+}
+async function chooseGitRepository() {
+  const directory = await window.electronAPI.selectDirectory();
+  if (!directory) return;
+  state.config.gitRepository = directory;
+  await persistConfig();
+  renderGitPanel();
+  await refreshGitStatus();
+}
+async function refreshGitStatus() {
+  const directory = state.config.gitRepository;
+  if (!directory) return showToast(t("git.noRepository"), "error");
+  const [status, branch, history] = await Promise.all([
+    window.electronAPI.gitStatus(directory),
+    window.electronAPI.gitBranch(directory),
+    window.electronAPI.gitHistory(directory),
+  ]);
+  byId("gitStatusOutput").textContent = status.success
+    ? status.output || t("git.clean")
+    : status.error;
+  byId("gitBranchName").textContent = branch.success && branch.output
+    ? `${t("git.branch")}: ${branch.output}`
+    : t("git.noBranch");
+  byId("gitHistoryOutput").textContent = history.success && history.output
+    ? history.output
+    : t("git.historyEmpty");
+}
+async function initializeGit() {
+  const directory = state.config.gitRepository;
+  if (!directory) return showToast(t("git.noRepository"), "error");
+  const result = await window.electronAPI.gitInit(directory);
+  if (!result.success) return showToast(result.error, "error");
+  showToast(t("git.initialized"), "success");
+  await refreshGitStatus();
+}
+async function createGitCommit() {
+  const directory = state.config.gitRepository;
+  const message = byId("gitCommitMessage").value.trim();
+  if (!directory || !message) return showToast(t("git.commitRequired"), "error");
+  const result = await window.electronAPI.gitCommit({ directory, message });
+  if (!result.success) return showToast(result.error, "error");
+  byId("gitCommitMessage").value = "";
+  showToast(t("git.committed"), "success");
+  await refreshGitStatus();
+}
+async function runGitAction(action) {
+  const directory = state.config.gitRepository;
+  if (!directory) return showToast(t("git.noRepository"), "error");
+  const api = {
+    fetch: window.electronAPI.gitFetch,
+    pull: window.electronAPI.gitPull,
+    push: window.electronAPI.gitPush,
+  }[action];
+  const result = await api(directory);
+  if (!result.success) return showToast(result.error, "error");
+  showToast(t(`git.${action}Done`), "success");
+  await refreshGitStatus();
 }
 function switchSettingsTab(name) {
   document
@@ -1499,7 +1892,7 @@ function renderVariableRows(containerId, variables) {
 function addVariableRow(containerId, name = "", value = "") {
   const row = document.createElement("div");
   row.className = "variable-row";
-  row.innerHTML = `<input class="variable-name" placeholder="name" value="${escapeHtml(name)}"><input class="variable-value" type="password" placeholder="value" value="${escapeHtml(value)}"><button type="button" class="variable-visibility" title="Show value">◉</button><button type="button" class="btn-remove" aria-label="Remove variable">×</button>`;
+  row.innerHTML = `<input class="variable-name" aria-label="${escapeHtml(t("form.name"))}" placeholder="${escapeHtml(t("form.name"))}" value="${escapeHtml(name)}"><input class="variable-value" type="password" aria-label="${escapeHtml(t("form.value"))}" placeholder="${escapeHtml(t("form.value"))}" value="${escapeHtml(value)}"><button type="button" class="variable-visibility" title="${escapeHtml(t("variables.showValue"))}" aria-label="${escapeHtml(t("variables.showValue"))}">◉</button><button type="button" class="btn-remove" aria-label="${escapeHtml(t("variables.remove"))}">×</button>`;
   row.querySelector(".variable-visibility").addEventListener("click", () => {
     const input = row.querySelector(".variable-value");
     input.type = input.type === "password" ? "text" : "password";
@@ -1554,7 +1947,7 @@ function closeUserWindow() {
 
 async function saveUserSettings(event) {
   event.preventDefault();
-  state.config.user.name = byId("accountNameInput").value.trim() || "Usuario";
+  state.config.user.name = byId("accountNameInput").value.trim() || t("account.defaultName");
   state.config.language = byId("languageSelect").value;
   const environment = state.config.environments.find(
     (env) => env.id === byId("accountEnvironmentSelect").value,
@@ -1573,6 +1966,10 @@ async function saveUserSettings(event) {
   updateWelcomeMessage(state.config);
   applyTranslations();
   renderEnvironmentOptions();
+  renderCollections();
+  renderHistory();
+  renderTimeline();
+  updateProtocolWorkspace();
   closeUserWindow();
   showToast(t("account.save"), "success");
 }

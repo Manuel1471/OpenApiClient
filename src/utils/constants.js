@@ -2,7 +2,7 @@
 
 module.exports = {
   APP_NAME: 'OpenAPI Client',
-  APP_VERSION: '1.0.0',
+  APP_VERSION: '1.1.0',
   
   // Configuración de ventana
   WINDOW: {
@@ -21,4 +21,3 @@ module.exports = {
     INVOKE: 'app:invoke'
   }
 };
-
